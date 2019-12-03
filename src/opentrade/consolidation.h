@@ -21,13 +21,16 @@ struct PriceLevels : public std::set<T, Cmp<T>, Alloc<T>> {
 };
 
 struct PriceLevel {
-  explicit PriceLevel(double price) : price(price) {}
+  explicit PriceLevel(double price) : price(price), size(0) {}
   double price;
+  MarketData::Qty size;
   struct Quote {
-    Quote(const Instrument* inst, PriceLevel* parent)
-        : inst(inst), parent(parent) {}
+    Quote(const Instrument* inst, PriceLevel* parent, MarketData::Qty size)
+        : inst(inst), parent(parent), size(size) {}
+
     const Instrument* inst;
     PriceLevel* parent;
+    MarketData::Qty size;
   };
   typedef std::list<Quote, tbb::tbb_allocator<Quote>> Quotes;
   Quotes quotes;
@@ -35,8 +38,9 @@ struct PriceLevel {
       self;  // for erase myself from levels efficiently
   bool operator<(const PriceLevel& rhs) const { return price < rhs.price; }
   bool operator>(const PriceLevel& rhs) const { return price > rhs.price; }
-  auto Insert(const Instrument* inst) {
-    quotes.emplace_front(inst, this);
+  auto Insert(const Instrument* inst, MarketData::Qty size) {
+    quotes.emplace_front(inst, this, size);
+    this->size += size;
     return quotes.begin();
   }
 };
@@ -47,6 +51,8 @@ static_assert(AskLevels::IsAsk(), "AskLevels cmp function wrong");
 static_assert(!BidLevels::IsAsk(), "BidLevels cmp function wrong");
 
 struct ConsolidationBook : public Indicator {
+  ConsolidationBook() {}
+  explicit ConsolidationBook(int num_src);
   static const Indicator::IdType kId = kConsolidation;
   typedef std::unique_lock<std::mutex> Lock;
   std::vector<PriceLevel::Quotes::iterator> ask_quotes;
@@ -56,11 +62,13 @@ struct ConsolidationBook : public Indicator {
   mutable std::mutex m;
   void Reset();
   template <typename A, typename B>
-  void Update(double price, const Instrument* inst, A* a, B* b);
+  void Update(double price, MarketData::Qty size, const Instrument* inst, A* a,
+              B* b);
   template <bool reset, typename A>
   void Erase(PriceLevel::Quotes::const_iterator it, A* a);
   template <typename A, typename B>
-  void Insert(double price, const Instrument* inst, A* a, B* b);
+  void Insert(double price, MarketData::Qty size, const Instrument* inst, A* a,
+              B* b);
 };
 
 struct ConsolidationHandler : public IndicatorHandler {

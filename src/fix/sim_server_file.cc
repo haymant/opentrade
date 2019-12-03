@@ -99,7 +99,7 @@ void SimServerFile::Start() noexcept {
         }
         HandleTick(sec->id, type, px, qty);
       }
-      for (auto& pair : *md_) pair.second = opentrade::MarketData{};
+      for (auto& pair : md()) pair.second = opentrade::MarketData{};
     }
   });
   thread.detach();

@@ -119,8 +119,8 @@ class Algo : public Adapter {
 class Instrument {
  public:
   typedef std::unordered_set<Order*> Orders;
-  Instrument(Algo* algo, const Security& sec, DataSrc src)
-      : algo_(algo), sec_(sec), src_(src) {}
+  Instrument(Algo* algo, const Security& sec, DataSrc src, uint8_t src_idx = 0)
+      : algo_(algo), sec_(sec), src_(src), src_idx_(src_idx) {}
   Algo& algo() { return *algo_; }
   const Algo& algo() const { return *algo_; }
   const Instrument* parent() const { return parent_; }

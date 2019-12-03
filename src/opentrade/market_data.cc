@@ -46,7 +46,7 @@ void MarketDataManager::AddAdapter(MarketDataAdapter* adapter) {
 
   if (!default_) default_ = adapter;
   auto src = adapter->config("src");
-  if (src.size() > 4) {
+  if (src.size() > sizeof(DataSrc::IdType)) {
     LOG_FATAL("Invalid market data src: " << src << ", maximum length is 4");
   }
   auto src_id = DataSrc::GetId(src.c_str());
@@ -74,7 +74,6 @@ void MarketDataAdapter::Update(Security::IdType id, const MarketData::Quote& q,
   if (level >= 5) return;
   auto& md = md_ptr ? *md_ptr : (*md_)[id];
   auto& q0 = md.depth[level];
-  if (q0 == q) return;
   md.tm = tm ? tm : GetTime();
   q0 = q;
   if (level) return;

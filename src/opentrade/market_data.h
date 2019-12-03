@@ -15,7 +15,7 @@
 namespace opentrade {
 
 struct DataSrc {
-  typedef uint32_t IdType;
+  typedef uint64_t IdType;
 
   IdType value = 0;
   DataSrc() : value(0) {}
@@ -40,9 +40,9 @@ struct DataSrc {
   }
 
   static const char* GetStr(IdType id) {
-    static thread_local char str[5];
+    static thread_local char str[9];
     auto i = 0u;
-    for (i = 0u; i < 4 && id; ++i) {
+    for (i = 0u; i < sizeof(IdType) && id; ++i) {
       str[i] = id & 0xFF;
       id >>= 8;
     }
@@ -141,6 +141,7 @@ struct MarketData {
   typedef Quote Depth[kDepthSize];
 
   const Quote& quote() const { return depth[0]; }
+  auto mid() const { return (quote().ask_price + quote().bid_price) / 2; }
 
   Trade trade;
   Depth depth;
@@ -226,6 +227,7 @@ class MarketDataAdapter : public virtual NetworkAdapter {
     });
   }
   DataSrc::IdType src() const { return src_; }
+  MarketDataMap& md() { return *md_; }
   void Update(Security::IdType id, const MarketData::Quote& q,
               uint32_t level = 0, time_t tm = 0, MarketData* md_ptr = nullptr);
   void Update(Security::IdType id, double price, MarketData::Qty size,
@@ -258,12 +260,12 @@ class MarketDataAdapter : public virtual NetworkAdapter {
   virtual void SubscribeSync(const Security& sec) noexcept = 0;
 
  protected:
-  MarketDataMap* md_ = nullptr;
   std::atomic<int> request_counter_ = 0;
   tbb::concurrent_unordered_set<const opentrade::Security*> subs_;
   TaskPool tp_;
 
  private:
+  MarketDataMap* md_ = nullptr;
   DataSrc::IdType src_ = 0;
   friend class MarketDataManager;
 };

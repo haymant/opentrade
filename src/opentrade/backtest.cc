@@ -388,6 +388,7 @@ void Backtest::Start(const std::string& py,
   on_start_ = GetCallable(m, "on_start");
   on_start_of_day_ = GetCallable(m, "on_start_of_day");
   on_end_ = GetCallable(m, "on_end");
+  if (!on_end_) on_end_ = GetCallable(m, "on_stop");
   on_end_of_day_ = GetCallable(m, "on_end_of_day");
   if (!on_start_) return;
   try {

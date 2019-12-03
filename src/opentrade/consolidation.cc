@@ -4,6 +4,11 @@ namespace opentrade {
 
 static PriceLevel::Quotes kEmptyQuotes;
 
+ConsolidationBook::ConsolidationBook(int num_src) {
+  ask_quotes.resize(num_src, kEmptyQuotes.end());
+  bid_quotes.resize(num_src, kEmptyQuotes.end());
+}
+
 void ConsolidationBook::Reset() {
   Lock lock(m);
   for (auto& p : ask_quotes) p = kEmptyQuotes.end();
@@ -22,20 +27,21 @@ inline void ConsolidationBook::Erase(PriceLevel::Quotes::const_iterator it,
       bid_quotes[it->inst->src_idx()] = kEmptyQuotes.end();
   }
   auto level = it->parent;
+  level->size -= it->size;
   level->quotes.erase(it);
   if (level->quotes.empty()) a->erase(level->self);
 }
 
 template <typename A, typename B>
-inline void ConsolidationBook::Insert(double price, const Instrument* inst,
-                                      A* a, B* b) {
+inline void ConsolidationBook::Insert(double price, MarketData::Qty size,
+                                      const Instrument* inst, A* a, B* b) {
   auto p = a->emplace(price);
   auto& level = const_cast<PriceLevel&>(*p.first);
   if (p.second) level.self = p.first;
   if constexpr (A::IsAsk())
-    ask_quotes[inst->src_idx()] = level.Insert(inst);
+    ask_quotes[inst->src_idx()] = level.Insert(inst, size);
   else
-    bid_quotes[inst->src_idx()] = level.Insert(inst);
+    bid_quotes[inst->src_idx()] = level.Insert(inst, size);
   // remove crossed levels of b, lock allowed
   for (auto it = b->begin(); it != b->end() && A::kPriceCmp(price, it->price);
        ++it) {
@@ -44,8 +50,8 @@ inline void ConsolidationBook::Insert(double price, const Instrument* inst,
 }
 
 template <typename A, typename B>
-inline void ConsolidationBook::Update(double price, const Instrument* inst,
-                                      A* a, B* b) {
+inline void ConsolidationBook::Update(double price, MarketData::Qty size,
+                                      const Instrument* inst, A* a, B* b) {
   PriceLevel::Quotes::iterator it;
   if constexpr (A::IsAsk())
     it = ask_quotes[inst->src_idx()];
@@ -53,12 +59,12 @@ inline void ConsolidationBook::Update(double price, const Instrument* inst,
     it = bid_quotes[inst->src_idx()];
   Lock lock(m);
   if (it == kEmptyQuotes.end()) {
-    if (price > 0) Insert(price, inst, a, b);
+    if (price > 0) Insert(price, size, inst, a, b);
   } else {
     if (price > 0) {
       if (price != it->parent->price) {
         Erase<false>(it, a);
-        Insert(price, inst, a, b);
+        Insert(price, size, inst, a, b);
       }
     } else {
       Erase<true>(it, a);
@@ -101,9 +107,9 @@ void ConsolidationHandler::OnMarketQuote(const Instrument& inst,
   auto& q0 = md0.quote();
   auto& q = md.quote();
   if (q.ask_price != q0.ask_price)
-    book->Update(q.ask_price, &inst, &book->asks, &book->bids);
+    book->Update(q.ask_price, q.ask_size, &inst, &book->asks, &book->bids);
   if (q.bid_price != q0.bid_price)
-    book->Update(q.bid_price, &inst, &book->bids, &book->asks);
+    book->Update(q.bid_price, q.bid_size, &inst, &book->bids, &book->asks);
 }
 
 }  // namespace opentrade

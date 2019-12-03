@@ -243,21 +243,19 @@ class FixAdapter : public Application,
   }
 
   template <typename MDEntry>
-  void OnMarketData(const FIX::Message& msg) {
+  inline void OnMarketData(const FIX::Message& msg) {
     auto req_id = atoi(msg.getField(FIX::FIELD::MDReqID).c_str());
     auto req = reqs_.find(req_id);
     if (req == reqs_.end()) return;
-    auto md = req->second.first;
-    auto sec = req->second.second->id;
     auto no_md_entries = atoi(msg.getField(FIX::FIELD::NoMDEntries).c_str());
-    bool top_updated = false;
+    auto mid0 = req->second.md->mid();
     for (auto i = 1; i <= no_md_entries; i++) {
       MDEntry md_entry;
       msg.getGroup(i, md_entry);
       double price = 0.;
       if (md_entry.isSetField(FIX::FIELD::MDEntryPx))
         price = atof(md_entry.getField(FIX::FIELD::MDEntryPx).c_str());
-      int64_t size = 0;
+      MarketData::Qty size = 0;
       if (md_entry.isSetField(FIX::FIELD::MDEntrySize)) {
         size = atoll(md_entry.getField(FIX::FIELD::MDEntrySize).c_str());
         if (multiplier_ > 0) size = Round6(multiplier_ * size);
@@ -269,21 +267,33 @@ class FixAdapter : public Application,
           size = 0;
         }
       }
-      auto level = GetPriceLevel(md_entry);
       auto type = *md_entry.getField(FIX::FIELD::MDEntryType).c_str();
-      if (type == FIX::MDEntryType_BID) {
-        md->Update(sec, price, size, true, level);
-      } else if (type == FIX::MDEntryType_OFFER) {
-        md->Update(sec, price, size, false, level);
-      }
-      if (!level) top_updated = true;
+      UpdateQuote(md_entry, price, size, type == FIX::MDEntryType_BID,
+                  &req->second);
     }
-    if (top_updated && update_fx_price_) {
-      md->UpdateMidAsLastPrice(sec);
+    AfterOnMarketData(&req->second);
+    if (update_fx_price_) {
+      auto mid = req->second.md->mid();
+      if (mid != mid0)
+        req->second.src->UpdateLastPrice(req->second.sec->id, mid, 0,
+                                         req->second.md);
     }
   }
 
-  virtual int GetPriceLevel(const FIX::Group& msg) noexcept { return 0; }
+  struct ReqTuple {
+    MarketDataAdapter* src;
+    const Security* sec;
+    MarketData* md;
+    void* misc;
+  };
+
+  virtual void UpdateQuote(const FIX::FieldMap& md_entry, double price,
+                           MarketData::Qty size, bool is_bid, ReqTuple* req) {
+    req->src->Update(req->sec->id, price, size, is_bid, 0, 0, req->md);
+  }
+
+  virtual void AfterOnMarketData(ReqTuple* req) {}
+
   virtual void SetRelatedSymbol(const Security& sec, DataSrc src,
                                 FIX::Message* msg) noexcept = 0;
 
@@ -410,9 +420,7 @@ class FixAdapter : public Application,
  protected:
   int64_t transact_time_ = 0;
   std::vector<MarketDataAdapter*> srcs_;
-  tbb::concurrent_unordered_map<int,
-                                std::pair<MarketDataAdapter*, const Security*>>
-      reqs_;
+  tbb::concurrent_unordered_map<int, ReqTuple> reqs_;
   FIX::MarketDepth market_depth_ = 0;
   // 0 for full refresh, 1 for incremental refresh
   FIX::MDUpdateType md_update_type_ = FIX::MDUpdateType_INCREMENTAL_REFRESH;
@@ -476,17 +484,20 @@ class FixTmpl : public FixAdapter {
     // to-do
   }
 
+  virtual void* CreateReqMisc() { return nullptr; }
+
   void SubscribeSync(const Security& sec) noexcept override {
     for (auto& src : srcs_) {
+      auto n = ++request_counter_;
+      reqs_.emplace(n,
+                    ReqTuple{src, &sec, &src->md()[sec.id], CreateReqMisc()});
       FIX::SubscriptionRequestType sub_type(
           FIX::SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES);
-      auto n = ++request_counter_;
       FIX::MDReqID md_req_id(std::to_string(n));
       MarketDataRequest req(md_req_id, sub_type, market_depth_);
       req.set(md_update_type_);
       SetRelatedSymbol(sec, DataSrc(src->src()), &req);
       Send(&req);
-      reqs_[n] = std::make_pair(src, &sec);
     }
   }
 

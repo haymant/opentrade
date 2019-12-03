@@ -156,7 +156,7 @@ std::string Simulator::Place(const Order& ord) noexcept {
         assert(actives_of_sec.all.size() ==
                actives_of_sec.buys.size() + actives_of_sec.sells.size());
         Async([this, &ord, &actives_of_sec]() {
-          auto& md = (*md_)[ord.sec->id];
+          auto& md = this->md()[ord.sec->id];
           auto px = ord.IsBuy() ? md.quote().ask_price : md.quote().bid_price;
           if (!px) return;
           auto qty = ord.IsBuy() ? md.quote().ask_size : md.quote().bid_size;
@@ -194,7 +194,7 @@ std::string Simulator::Cancel(const Order& ord) noexcept {
 
 void Simulator::ResetData() {
   seed_ = 0;
-  for (auto& pair : *md_) {
+  for (auto& pair : md()) {
     const_cast<Security*>(SecurityManager::Instance().Get(pair.first))
         ->close_price = pair.second.trade.close;
     pair.second.Clear();
