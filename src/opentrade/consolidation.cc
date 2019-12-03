@@ -65,6 +65,10 @@ inline void ConsolidationBook::Update(double price, MarketData::Qty size,
       if (price != it->parent->price) {
         Erase<false>(it, a);
         Insert(price, size, inst, a, b);
+      } else if (size != it->size) {
+        auto d = size - it->size;
+        it->size = size;
+        it->parent->size += d;
       }
     } else {
       Erase<true>(it, a);
