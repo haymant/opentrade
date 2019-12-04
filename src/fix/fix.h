@@ -441,7 +441,7 @@ class FixTmpl : public FixAdapter {
 
   void onMessage(const TradingSessionStatus& status,
                  const FIX::SessionID& session) override {
-    LOG_INFO(name() << status);
+    LOG_INFO(name() << ": " << status);
   }
 
   void onMessage(const OrderCancelReject& msg,
