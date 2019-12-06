@@ -194,7 +194,8 @@ bool ExchangeConnectivityManager::Place(Order* ord) {
 
 static inline bool Cancel(Order* cancel_order) {
   kRiskError.clear();
-  if (!RiskManager::Instance().CheckMsgRate(*cancel_order)) {
+  if (!RiskManager::Instance().CheckMsgRate(*cancel_order) ||
+      !RiskManager::Instance().CheckCancels(*cancel_order)) {
     HandleConfirmation(cancel_order, kRiskRejected, kRiskError);
     static uint32_t seed;
     kTimerTaskPool.AddTask(

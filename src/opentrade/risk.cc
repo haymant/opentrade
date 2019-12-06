@@ -10,6 +10,7 @@ std::string Limits::GetString() {
   out << std::setprecision(15);
   out << "msg_rate=" << msg_rate << '\n'
       << "msg_rate_per_security=" << msg_rate_per_security << '\n'
+      << "max_cancels_per_security=" << max_cancels_per_security << '\n'
       << "order_qty=" << order_qty << '\n'
       << "order_value=" << order_value << '\n'
       << "value=" << value << '\n'
@@ -33,6 +34,8 @@ std::string Limits::FromString(const std::string& str) {
       l.msg_rate = value;
     else if (!strcasecmp(name, "msg_rate_per_security"))
       l.msg_rate_per_security = value;
+    else if (!strcasecmp(name, "max_cancels_per_security"))
+      l.max_cancels_per_security = value;
     else if (!strcasecmp(name, "order_qty"))
       l.order_qty = value;
     else if (!strcasecmp(name, "order_value"))
@@ -54,8 +57,8 @@ std::string Limits::FromString(const std::string& str) {
   return {};
 }
 
-static bool CheckMsgRate(const char* name, const AccountBase& acc,
-                         Security::IdType sid) {
+static inline bool CheckMsgRate(const char* name, const AccountBase& acc,
+                                Security::IdType sid) {
   auto tm = GetTime();
   auto& l = acc.limits;
   if (l.msg_rate_per_security > 0) {
@@ -79,11 +82,31 @@ static bool CheckMsgRate(const char* name, const AccountBase& acc,
   return true;
 }
 
+static inline bool CheckCancels(const char* name, const AccountBase& acc,
+                                Security::IdType sid) {
+  auto& l = acc.limits;
+  if (l.max_cancels_per_security > 0) {
+    auto v = FindInMap(acc.cancels_per_security, sid);
+    if (v >= l.max_cancels_per_security) {
+      char buf[256];
+      snprintf(buf, sizeof(buf),
+               "%s limit breach: maximum cancels per second %d > %d", name,
+               v.load(), l.max_cancels_per_security);
+      kRiskError = buf;
+      return false;
+    }
+  }
+  return true;
+}
+
 static bool Check(const char* name, const Order& ord, const AccountBase& acc,
                   const Position* pos) {
   if (!acc.CheckDisabled(name, &kRiskError)) return false;
 
   if (!CheckMsgRate(name, acc, ord.sec->id)) return false;
+
+  // reject new order also if cancels breached
+  if (!CheckCancels(name, acc, ord.sec->id)) return false;
 
   auto& l = acc.limits;
 
@@ -237,6 +260,26 @@ bool RiskManager::CheckMsgRate(const Order& ord) {
     return false;
 
   if (!opentrade::CheckMsgRate("user", *ord.user, ord.sec->id)) return false;
+
+  return true;
+}
+
+bool RiskManager::CheckCancels(const Order& ord) {
+  if (disabled_) return true;
+
+  assert(ord.sub_account);
+  assert(ord.sec);
+  assert(ord.user);
+  assert(ord.broker_account);
+
+  if (!opentrade::CheckCancels("sub_account", *ord.sub_account, ord.sec->id))
+    return false;
+
+  if (!opentrade::CheckCancels("broker_account", *ord.broker_account,
+                               ord.sec->id))
+    return false;
+
+  if (!opentrade::CheckCancels("user", *ord.user, ord.sec->id)) return false;
 
   return true;
 }

@@ -24,6 +24,8 @@ struct AccountBase {
   Throttle throttle_in_sec;
   tbb::concurrent_unordered_map<Security::IdType, Throttle>
       throttle_per_security_in_sec;
+  tbb::concurrent_unordered_map<Security::IdType, tbb::atomic<int>>
+      cancels_per_security;
   PositionValue position_value;
 
   boost::shared_ptr<const std::string> disabled_reason() const {

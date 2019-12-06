@@ -56,6 +56,16 @@ inline void GlobalOrderBook::UpdateOrder(Confirmation::Ptr cm) {
       }
       orders_.emplace(ord->id, ord);
       ord->status = cm->exec_type;
+      if (kUnconfirmedCancel == cm->exec_type) {
+        if (ord->sub_account->limits.msg_rate_per_security > 0)
+          const_cast<SubAccount*>(ord->sub_account)
+              ->cancels_per_security[ord->sec->id]++;
+        if (ord->broker_account->limits.msg_rate_per_security > 0)
+          const_cast<BrokerAccount*>(ord->broker_account)
+              ->cancels_per_security[ord->sec->id]++;
+        if (ord->user->limits.msg_rate_per_security > 0)
+          const_cast<User*>(ord->user)->cancels_per_security[ord->sec->id]++;
+      }
     } break;
     case kPartiallyFilled:
     case kFilled:

@@ -11,6 +11,7 @@ namespace opentrade {
 struct Limits {
   double msg_rate = 0;               // per second
   double msg_rate_per_security = 0;  // per security per second
+  int max_cancels_per_security = 0;  // for some instruments in CHINA market
   double order_qty = 0;
   double order_value = 0;
   double value = 0;           // intraday per security
@@ -49,6 +50,7 @@ class RiskManager : public Singleton<RiskManager> {
  public:
   bool Check(const Order& ord);
   bool CheckMsgRate(const Order& ord);
+  bool CheckCancels(const Order& ord);
   void Disable() { disabled_ = true; }
 
  private:
