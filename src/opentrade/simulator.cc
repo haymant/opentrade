@@ -21,6 +21,7 @@ static inline void Async(std::function<void()> func, double seconds = 0) {
 
 inline double Simulator::TryFillBuy(double px, double qty,
                                     Orders* actives_of_sec) {
+  if (!px) return qty;
   for (auto it = actives_of_sec->buys.rbegin();
        it != actives_of_sec->buys.rend() && qty > 0 && px <= it->first;) {
     auto& tuple = it->second;
@@ -48,6 +49,7 @@ inline double Simulator::TryFillBuy(double px, double qty,
 
 inline double Simulator::TryFillSell(double px, double qty,
                                      Orders* actives_of_sec) {
+  if (!px) return qty;
   for (auto it = actives_of_sec->sells.begin();
        it != actives_of_sec->sells.end() && qty > 0 && px >= it->first;) {
     auto& tuple = it->second;

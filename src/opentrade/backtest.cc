@@ -146,7 +146,6 @@ inline Tick ReadTextTickFile(std::ifstream& ifs, uint32_t to_tm, SecTuples* sts,
     if (!st.sec) continue;
     t.st = &st;
     t.px *= st.adj_px;
-    if (!t.px) continue;
     t.qty *= st.adj_vol;
     auto hms = hmsm / 1000;
     t.ms = (hms / 10000 * 3600 + hms % 10000 / 100 * 60 + hms % 100) * 1000 +
@@ -177,7 +176,6 @@ inline Tick ReadBinaryTickFile(const char** pp, const char* p_end,
     if (!st.sec) continue;
     t.st = &st;
     t.px *= st.adj_px;
-    if (!t.px) continue;
     t.qty *= st.adj_vol;
     if (t.ms > to_tm) return t;
     ticks->push_back(t);
@@ -412,6 +410,7 @@ void Backtest::Start(const std::string& py,
   auto used_symbols_str = getenv("USED_SYMBOLS");
   if (used_symbols_str) {
     for (auto& str : Split(used_symbols_str, ",")) used_symbols_.insert(str);
+    LOG_INFO("USED_SYMBOLS=" << used_symbols_str);
   }
 }
 
