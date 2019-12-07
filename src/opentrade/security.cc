@@ -204,7 +204,6 @@ void SecurityManager::LoadFromDatabase() {
     auto ex_it = exchanges_.find(exchange_id);
     if (ex_it != exchanges_.end()) {
       s->exchange = ex_it->second;
-      ex_it->second->security_of_name.emplace(s->symbol, s);
     }
     auto underlying_id = Database::GetValue(*it, i++, Security::IdType());
     if (underlying_id > 0) {
@@ -237,6 +236,12 @@ void SecurityManager::LoadFromDatabase() {
     s->SetParams(Database::GetValue(*it, i++, kEmptyStr));
     std::atomic_thread_fence(std::memory_order_release);
     securities_.emplace(s->id, s);
+    if (s->exchange) {
+      const_cast<Exchange*>(s->exchange)
+          ->security_of_name.emplace(s->symbol, s);
+      security_of_name_.emplace(
+          s->symbol + std::string(" ") + s->exchange->name, s);
+    }
   }
   LOG_INFO(securities_.size() << " securities loaded");
   for (auto& pair : underlying_map) {

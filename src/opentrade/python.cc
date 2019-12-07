@@ -538,8 +538,21 @@ BOOST_PYTHON_MODULE(opentrade) {
 
   bp::def("get_security",
           bp::make_function(
-              +[](Security::IdType id) {
-                return SecurityManager::Instance().Get(id);
+              +[](bp::object id_or_name) {
+                try {
+                  return SecurityManager::Instance().Get(
+                      bp::extract<std::string>(id_or_name));
+                } catch (const bp::error_already_set &err) {
+                  PyErr_Clear();
+                }
+                try {
+                  return SecurityManager::Instance().Get(
+                      bp::extract<int64_t>(id_or_name));
+                } catch (const bp::error_already_set &err) {
+                  PyErr_Clear();
+                }
+                const Security *ptr = nullptr;
+                return ptr;
               },
               bp::return_value_policy<bp::reference_existing_object>()));
 

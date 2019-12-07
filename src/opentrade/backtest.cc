@@ -54,14 +54,14 @@ decltype(auto) GetSecurities(std::ifstream& ifs, const char* fn, bool* binary,
     }
   } else if (!strcasecmp(b, "symbol")) {
     for (auto& pair : SecurityManager::Instance().securities()) {
-      sec_map[std::string(pair.second->exchange->name) + " " +
-              pair.second->symbol] = pair.second;
+      sec_map[pair.second->symbol + std::string(" ") +
+              pair.second->exchange->name] = pair.second;
     }
   } else if (!strcasecmp(b, "local_symbol")) {
     for (auto& pair : SecurityManager::Instance().securities()) {
       if (*pair.second->local_symbol)
-        sec_map[std::string(pair.second->exchange->name) + " " +
-                pair.second->local_symbol] = pair.second;
+        sec_map[pair.second->local_symbol + std::string(" ") +
+                pair.second->exchange->name] = = pair.second;
     }
   } else {
     LOG_FATAL("Invalid file: " << fn);

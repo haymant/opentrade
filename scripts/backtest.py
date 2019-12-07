@@ -9,13 +9,14 @@ database = 'test:test@iraut@127.0.0.1:5432/opentrade'
 ctx, data = init(vars())
 '''
 
-os.environ['USED_SYMBOLS'] = 'US MSFT'
-sec = get_exchange('US').get_security('MSFT')
+symbol = 'MSFT US'
+os.environ['USED_SYMBOLS'] = symbol
+sec = get_security(symbol)
 
 
 def on_start(self):
   '''
-  df = data.history(ctx.symbol('MSFT US'), table='_adj_', period='6000d')
+  df = data.history(ctx.symbol(symbol), table='_adj_', period='6000d')
   df = df.iloc[::-1].cumprod().iloc[::-1]
   series = [df.iloc[i] for i in range(len(df))]
   sec.set_adj([(int(x.name.strftime('%Y%m%d')), x.px, x.vol) for x in series])

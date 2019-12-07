@@ -179,8 +179,14 @@ class SecurityManager : public Singleton<SecurityManager> {
     return exch ? exch->Get(sec_name) : nullptr;
   }
 
+  const Security* Get(const std::string& name) const {
+    return FindInMap(security_of_name_, name);
+  }
+
   typedef tbb::concurrent_unordered_map<Security::IdType, Security*>
       SecurityMap;
+  typedef tbb::concurrent_unordered_map<std::string, Security*>
+      SecurityOfNameMap;
   const SecurityMap& securities() const { return securities_; }
   void LoadFromDatabase();
   typedef tbb::concurrent_unordered_map<Exchange::IdType, Exchange*>
@@ -195,6 +201,7 @@ class SecurityManager : public Singleton<SecurityManager> {
   ExchangeMap exchanges_;
   tbb::concurrent_unordered_map<std::string, Exchange*> exchange_of_name_;
   SecurityMap securities_;
+  SecurityOfNameMap security_of_name_;
   const char* check_sum_ = "";
   friend class Connection;
   std::unordered_map<std::string, double> rates_;
