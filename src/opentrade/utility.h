@@ -234,16 +234,18 @@ class PipeStream {
   PipeStream() {}
   explicit PipeStream(const char* fn) { open(fn); }
 
-  void open(const char* fn) {
+  bool open(const char* fn) {
+    fstream_.open(fn);
+    if (!fstream_.good()) return false;
     std::string cmd;
     if (EndsWith(fn, ".xz")) {
       cmd = "xzcat";
     } else if (EndsWith(fn, ".gz")) {
       cmd = "zcat";
     } else {
-      fstream_.open(fn);
-      return;
+      return true;
     }
+    fstream_.close();
     cmd += " ";
     cmd += fn;
     pipe_ = popen(cmd.c_str(), "r");
@@ -255,6 +257,7 @@ class PipeStream {
 #endif
     pstream_.open(pipe_src);
     pstream_.set_auto_close(false);
+    return pstream_.good();
   }
 
   std::basic_istream<char>& stream() {

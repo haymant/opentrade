@@ -130,8 +130,8 @@ OpenTrade is an open source OEMS, and algorithmic trading platform, designed for
   * It is up to you to generate report
   ```
   make args=-j backtest-debug
-  wget -O ticks.tgz https://www.dropbox.com/s/maikrn2qbz8hxba/ticks.tgz?dl=1; tar xzf ticks.tgz
-  ./build/backtest-debug/opentrade/opentrade -b scripts/backtest.py -t ticks/%Y%m%d -s 20170701 -e 20181115
+  wget -O ticks.tar https://www.dropbox.com/s/fmuwm7j9suc2z3e/ticks.tar?dl=1; tar xf ticks.tar
+  ./build/backtest-debug/opentrade/opentrade -b scripts/backtest.py -t ticks/%Y%m%d.xz -s 20170701 -e 20181115
   ```
   
 # Execution Optimization Example

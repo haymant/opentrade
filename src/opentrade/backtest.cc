@@ -33,16 +33,16 @@ typedef std::vector<Tick> Ticks;
 
 bool LoadTickFile(const char* fn, Simulator* sim,
                   const boost::gregorian::date& date, SecTuples* sts,
-                  PipeStream& ifs, bool* binary,
+                  PipeStream* ifs, bool* binary,
                   const std::set<std::string>& used_symbols) {
   *binary = true;
-  ifs.open(fn);
-  if (!ifs.good()) return false;
+  ifs->open(fn);
+  if (!ifs->good()) return false;
 
   LOG_INFO("Loading " << fn);
   auto secs0 = opentrade::SecurityManager::Instance().GetSecurities(
-      &ifs.stream(), fn, binary, used_symbols);
-  if (binary && ifs.pipe()) {
+      &ifs->stream(), fn, binary, used_symbols);
+  if (*binary && ifs->pipe()) {
     LOG_FATAL("Not support compressed tick file");
   }
   sts->clear();
@@ -63,11 +63,11 @@ bool LoadTickFile(const char* fn, Simulator* sim,
   return true;
 }
 
-inline Tick ReadTextTickFile(std::basic_istream<char>& ifs, uint32_t to_tm,
+inline Tick ReadTextTickFile(std::basic_istream<char>* ifs, uint32_t to_tm,
                              SecTuples* sts, Ticks* ticks) {
   static const int kLineLength = 128;
   char line[kLineLength];
-  while (ifs.getline(line, sizeof(line))) {
+  while (ifs->getline(line, sizeof(line))) {
     Tick t;
     uint32_t i;
     uint32_t hmsm;
@@ -137,7 +137,7 @@ void Backtest::Play(const boost::gregorian::date& date) {
   auto n = 0;
   for (auto i = 0u; i < simulators_.size(); ++i) {
     strftime(fn, sizeof(fn), simulators_[i].first.c_str(), &tm);
-    if (LoadTickFile(fn, simulators_[i].second, date, &sts[i], ifs[i],
+    if (LoadTickFile(fn, simulators_[i].second, date, &sts[i], &ifs[i],
                      &binaries[i], used_symbols_)) {
       LOG_DEBUG("Start to play back " << fn);
       if (binaries[i]) {
@@ -182,7 +182,7 @@ void Backtest::Play(const boost::gregorian::date& date) {
       t = binaries[i]
               ? ReadBinaryTickFile(&fpos[i].first, fpos[i].second, to_tm,
                                    &sts[i], &ticks)
-              : ReadTextTickFile(ifs[i].stream(), to_tm, &sts[i], &ticks);
+              : ReadTextTickFile(&ifs[i].stream(), to_tm, &sts[i], &ticks);
     }
     if (simulators_.size() > 1) std::sort(ticks.begin(), ticks.end());
     for (auto& t : ticks) {
