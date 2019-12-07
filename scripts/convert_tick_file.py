@@ -47,6 +47,7 @@ def post_callback(symbols):
 def parse(fn, callback, pre_callback=None, post_callback=None):
   if fn == '-': infile = sys.stdin
   elif fn.endswith('xz'): infile = os.popen('xzcat ' + fn)
+  elif fn.endswith('gz'): infile = os.popen('zcat ' + fn)
   else: infile = open(fn)
   line = infile.readline()
   offset = len(line)
