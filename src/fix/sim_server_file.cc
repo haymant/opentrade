@@ -9,64 +9,49 @@ struct SimServerFile : public opentrade::MarketDataAdapter, public SimServer {
 };
 
 void SimServerFile::Start() noexcept {
-  auto bbgid_file = config("bbgid_file");
-  if (bbgid_file.empty()) {
-    LOG_FATAL(name() << ": bbgid_file not given");
-  }
-
   auto ticks_file = config("ticks_file");
   if (ticks_file.empty()) {
     LOG_FATAL(name() << ": ticks_file not given");
   }
 
-  std::unordered_map<std::string, const Security*> sec_map;
-  for (auto& pair : opentrade::SecurityManager::Instance().securities()) {
-    sec_map[pair.second->bbgid] = pair.second;
-  }
-
-  std::string line;
-  std::vector<const Security*> secs;
-  std::ifstream ifs(bbgid_file.c_str());
+  opentrade::PipeStream ifs(ticks_file.c_str());
   if (!ifs.good()) {
-    LOG_FATAL(name() << ": Can not open " << bbgid_file);
-  }
-  while (std::getline(ifs, line)) {
-    auto sec = sec_map[line];
-    secs.push_back(sec);
-    if (!sec) {
-      LOG_ERROR(name() << ": Unknown bbgid " << line);
-      continue;
-    }
-  }
-
-  if (!std::ifstream(ticks_file.c_str()).good()) {
     LOG_FATAL(name() << ": Can not open " << ticks_file);
   }
+  bool binary;
+  auto secs = opentrade::SecurityManager::Instance().GetSecurities(
+      &ifs.stream(), ticks_file.c_str(), &binary);
+  assert(!binary);
 
   StartFix(*this);
   connected_ = 1;
 
-  std::thread thread([=]() {
+  std::thread thread([=, secs{std::move(secs)}]() {
     while (true) {
       struct tm tm;
       auto t = time(nullptr);
       gmtime_r(&t, &tm);
       auto n = tm.tm_hour * 3600 + tm.tm_min * 60 + tm.tm_sec;
       auto t0 = t - n;
-      std::ifstream ifs(ticks_file.c_str());
       std::string line;
       LOG_DEBUG(name() << ": Start to play back");
       auto skip = 0l;
-      while (std::getline(ifs, line)) {
+      opentrade::PipeStream ifs(ticks_file.c_str());
+      for (auto i = 0u; i < secs.size() + 2; ++i) {
+        std::getline(ifs.stream(), line);
+      }
+      while (std::getline(ifs.stream(), line)) {
         if (skip-- > 0) continue;
-        uint32_t hms;
+        char hms_str[24];
         uint32_t i;
         char type;
         double px;
         double qty;
-        if (sscanf(line.c_str(), "%u %u %c %lf %lf", &hms, &i, &type, &px,
+        if (sscanf(line.c_str(), "%s %u %c %lf %lf", hms_str, &i, &type, &px,
                    &qty) != 5)
           continue;
+        auto hms = atol(hms_str);
+        if (strlen(hms_str) > 6) hms /= 1000;
         if (i >= secs.size()) continue;
         t = t0 + hms / 10000 * 3600 + hms % 10000 / 100 * 60 + hms % 100;
         auto now = time(nullptr);

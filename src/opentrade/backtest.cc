@@ -1,5 +1,4 @@
 #ifdef BACKTEST
-
 #include "backtest.h"
 
 #include <boost/iostreams/device/mapped_file.hpp>
@@ -12,76 +11,6 @@
 namespace fs = boost::filesystem;
 
 namespace opentrade {
-
-decltype(auto) GetSecurities(std::ifstream& ifs, const char* fn, bool* binary,
-                             const std::set<std::string>& used_symbols) {
-  std::string line;
-  if (!std::getline(ifs, line)) {
-    LOG_FATAL("Invalid file: " << fn);
-  }
-  char a[256];
-  *a = 0;
-  char b[256];
-  *b = 0;
-  char c[256];
-  *c = 0;
-  std::vector<const Security*> out;
-  if (sscanf(line.c_str(), "%s %s %s", a, b, c) < 2 ||
-      strcasecmp(a, "@begin")) {
-    LOG_FATAL("Invalid file: " << fn);
-  }
-  *binary = !strncasecmp(c, "bin", 3);
-  std::unordered_map<std::string, const Security*> sec_map;
-  if (!strcasecmp(b, "bbgid")) {
-    for (auto& pair : SecurityManager::Instance().securities()) {
-      if (*pair.second->bbgid) sec_map[pair.second->bbgid] = pair.second;
-    }
-  } else if (!strcasecmp(b, "isin")) {
-    for (auto& pair : SecurityManager::Instance().securities()) {
-      if (*pair.second->isin) sec_map[pair.second->isin] = pair.second;
-    }
-  } else if (!strcasecmp(b, "cusip")) {
-    for (auto& pair : SecurityManager::Instance().securities()) {
-      if (*pair.second->cusip) sec_map[pair.second->cusip] = pair.second;
-    }
-  } else if (!strcasecmp(b, "sedol")) {
-    for (auto& pair : SecurityManager::Instance().securities()) {
-      if (*pair.second->sedol) sec_map[pair.second->sedol] = pair.second;
-    }
-  } else if (!strcasecmp(b, "id")) {
-    for (auto& pair : SecurityManager::Instance().securities()) {
-      sec_map[std::to_string(pair.second->id)] = pair.second;
-    }
-  } else if (!strcasecmp(b, "symbol")) {
-    for (auto& pair : SecurityManager::Instance().securities()) {
-      sec_map[pair.second->symbol + std::string(" ") +
-              pair.second->exchange->name] = pair.second;
-    }
-  } else if (!strcasecmp(b, "local_symbol")) {
-    for (auto& pair : SecurityManager::Instance().securities()) {
-      if (*pair.second->local_symbol)
-        sec_map[pair.second->local_symbol + std::string(" ") +
-                pair.second->exchange->name] = = pair.second;
-    }
-  } else {
-    LOG_FATAL("Invalid file: " << fn);
-  }
-
-  while (std::getline(ifs, line)) {
-    if (!strcasecmp(line.c_str(), "@end")) break;
-    auto sec = sec_map[line];
-    if (!sec) {
-      LOG_ERROR("Unknown security on line " << line << " of " << fn);
-      continue;
-    }
-    if (used_symbols.size() && used_symbols.find(line) == used_symbols.end())
-      sec = nullptr;
-    out.push_back(sec);
-  }
-  LOG_INFO(out.size() << " securities in " << fn);
-
-  return out;
-}
 
 struct SecTuple {
   const Security* sec;
@@ -104,14 +33,18 @@ typedef std::vector<Tick> Ticks;
 
 bool LoadTickFile(const char* fn, Simulator* sim,
                   const boost::gregorian::date& date, SecTuples* sts,
-                  std::ifstream& ifs, bool* binary,
+                  PipeStream& ifs, bool* binary,
                   const std::set<std::string>& used_symbols) {
   *binary = true;
   ifs.open(fn);
   if (!ifs.good()) return false;
 
   LOG_INFO("Loading " << fn);
-  auto secs0 = GetSecurities(ifs, fn, binary, used_symbols);
+  auto secs0 = opentrade::SecurityManager::Instance().GetSecurities(
+      &ifs.stream(), fn, binary, used_symbols);
+  if (binary && ifs.pipe()) {
+    LOG_FATAL("Not support compressed tick file");
+  }
   sts->clear();
   sts->resize(secs0.size());
   auto date_num = date.year() * 10000 + date.month() * 100 + date.day();
@@ -130,8 +63,8 @@ bool LoadTickFile(const char* fn, Simulator* sim,
   return true;
 }
 
-inline Tick ReadTextTickFile(std::ifstream& ifs, uint32_t to_tm, SecTuples* sts,
-                             Ticks* ticks) {
+inline Tick ReadTextTickFile(std::basic_istream<char>& ifs, uint32_t to_tm,
+                             SecTuples* sts, Ticks* ticks) {
   static const int kLineLength = 128;
   char line[kLineLength];
   while (ifs.getline(line, sizeof(line))) {
@@ -197,7 +130,7 @@ void Backtest::Play(const boost::gregorian::date& date) {
 
   char fn[256];
   SecTuples sts[simulators_.size()];
-  std::ifstream ifs[simulators_.size()];
+  PipeStream ifs[simulators_.size()];
   bool binaries[simulators_.size()];
   std::vector<std::pair<const char*, const char*>> fpos(simulators_.size());
   boost::iostreams::mapped_file_source mmfiles[simulators_.size()];
@@ -246,9 +179,10 @@ void Backtest::Play(const boost::gregorian::date& date) {
         if (t.ms > to_tm) continue;
         ticks.push_back(t);
       }
-      t = binaries[i] ? ReadBinaryTickFile(&fpos[i].first, fpos[i].second,
-                                           to_tm, &sts[i], &ticks)
-                      : ReadTextTickFile(ifs[i], to_tm, &sts[i], &ticks);
+      t = binaries[i]
+              ? ReadBinaryTickFile(&fpos[i].first, fpos[i].second, to_tm,
+                                   &sts[i], &ticks)
+              : ReadTextTickFile(ifs[i].stream(), to_tm, &sts[i], &ticks);
     }
     if (simulators_.size() > 1) std::sort(ticks.begin(), ticks.end());
     for (auto& t : ticks) {

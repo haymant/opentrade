@@ -183,6 +183,10 @@ class SecurityManager : public Singleton<SecurityManager> {
     return FindInMap(security_of_name_, name);
   }
 
+  std::vector<const Security*> GetSecurities(
+      std::basic_istream<char>* ifs, const char* fn, bool* binary,
+      const std::set<std::string>& used_symbols = {});
+
   typedef tbb::concurrent_unordered_map<Security::IdType, Security*>
       SecurityMap;
   typedef tbb::concurrent_unordered_map<std::string, Security*>

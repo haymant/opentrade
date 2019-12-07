@@ -101,11 +101,7 @@ OpenTrade is an open source OEMS, and algorithmic trading platform, designed for
    * Download tick data files
    ```bash
    cd opentrade
-   wget https://raw.githubusercontent.com/opentradesolutions/data/master/bbgids.txt
-   wget https://github.com/opentradesolutions/data/raw/master/ticks.txt.xz.part1
-   wget https://github.com/opentradesolutions/data/raw/master/ticks.txt.xz.part2
-   cat ticks.txt.xz.part1 ticks.txt.xz.part2 > ticks.txt.xz
-   xz -d ticks.txt.xz
+   wget -O ticks.txt.xz https://www.dropbox.com/s/b2xf0esn0rctygs/ticks.txt.xz?dl=1
    ```
    * Run
    ```Bash

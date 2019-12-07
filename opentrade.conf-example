@@ -13,6 +13,5 @@ config_file=sim.conf
 
 [md_sim]
 sofile=./libsim_server.so
-bbgid_file=./bbgids.txt
-ticks_file=./ticks.txt
+ticks_file=./ticks.txt.xz
 config_file=sim.conf

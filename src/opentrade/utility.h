@@ -4,13 +4,17 @@
 #include <sys/time.h>
 #include <any>
 #include <boost/algorithm/string.hpp>
+#include <boost/iostreams/device/file_descriptor.hpp>
+#include <boost/iostreams/stream.hpp>
 #include <cmath>
 #include <cstring>
 #include <ctime>
+#include <fstream>
 #include <iostream>
 #include <map>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <variant>
 #include <vector>
 
@@ -218,6 +222,67 @@ static inline const char* PythonOr(const char* a, const char* b) {
 
 static inline auto Round6(double dbl) { return std::round(dbl * 1e6) / 1e6; }
 static inline auto Round8(double dbl) { return std::round(dbl * 1e8) / 1e8; }
+
+static inline bool EndsWith(std::string const& value,
+                            std::string const& ending) {
+  if (ending.size() > value.size()) return false;
+  return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+}
+
+class PipeStream {
+ public:
+  PipeStream() {}
+  explicit PipeStream(const char* fn) { open(fn); }
+
+  void open(const char* fn) {
+    std::string cmd;
+    if (EndsWith(fn, ".xz")) {
+      cmd = "xzcat";
+    } else if (EndsWith(fn, ".gz")) {
+      cmd = "zcat";
+    } else {
+      fstream_.open(fn);
+      return;
+    }
+    cmd += " ";
+    cmd += fn;
+    pipe_ = popen(cmd.c_str(), "r");
+#if BOOST_VERSION > 104300
+    boost::iostreams::file_descriptor_source pipe_src(
+        fileno(pipe_), boost::iostreams::never_close_handle);
+#else
+    boost::iostreams::file_descriptor_source pipe_src(fileno(pipe_));
+#endif
+    pstream_.open(pipe_src);
+    pstream_.set_auto_close(false);
+  }
+
+  std::basic_istream<char>& stream() {
+    if (pipe_) return pstream_;
+    return fstream_;
+  }
+  auto tellg() { return pipe_ ? pstream_.tellg() : fstream_.tellg(); }
+  auto good() const { return pipe_ ? pstream_.good() : fstream_.good(); }
+  void close() {
+    if (pipe_) {
+      pclose(pipe_);
+      pstream_.close();
+      pipe_ = nullptr;
+    } else {
+      fstream_.close();
+    }
+  }
+  auto pipe() const { return pipe_; }
+
+  ~PipeStream() {
+    if (pipe_) pclose(pipe_);
+  }
+
+ private:
+  FILE* pipe_ = nullptr;
+  boost::iostreams::stream<boost::iostreams::file_descriptor_source> pstream_;
+  std::ifstream fstream_;
+};
 
 }  // namespace opentrade
 

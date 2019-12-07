@@ -276,4 +276,75 @@ double Exchange::GetTickSize(double ref) const {
   return it->value;
 }
 
+std::vector<const Security*> SecurityManager::GetSecurities(
+    std::basic_istream<char>* ifs, const char* fn, bool* binary,
+    const std::set<std::string>& used_symbols) {
+  std::string line;
+  if (!std::getline(*ifs, line)) {
+    LOG_FATAL("Invalid file: " << fn);
+  }
+  char a[256];
+  *a = 0;
+  char b[256];
+  *b = 0;
+  char c[256];
+  *c = 0;
+  std::vector<const Security*> out;
+  if (sscanf(line.c_str(), "%s %s %s", a, b, c) < 2 ||
+      strcasecmp(a, "@begin")) {
+    LOG_FATAL("Invalid file: " << fn);
+  }
+  *binary = !strncasecmp(c, "bin", 3);
+  std::unordered_map<std::string, const Security*> sec_map;
+  if (!strcasecmp(b, "bbgid")) {
+    for (auto& pair : securities()) {
+      if (*pair.second->bbgid) sec_map[pair.second->bbgid] = pair.second;
+    }
+  } else if (!strcasecmp(b, "isin")) {
+    for (auto& pair : securities()) {
+      if (*pair.second->isin) sec_map[pair.second->isin] = pair.second;
+    }
+  } else if (!strcasecmp(b, "cusip")) {
+    for (auto& pair : securities()) {
+      if (*pair.second->cusip) sec_map[pair.second->cusip] = pair.second;
+    }
+  } else if (!strcasecmp(b, "sedol")) {
+    for (auto& pair : securities()) {
+      if (*pair.second->sedol) sec_map[pair.second->sedol] = pair.second;
+    }
+  } else if (!strcasecmp(b, "id")) {
+    for (auto& pair : securities()) {
+      sec_map[std::to_string(pair.second->id)] = pair.second;
+    }
+  } else if (!strcasecmp(b, "symbol")) {
+    for (auto& pair : securities()) {
+      sec_map[pair.second->symbol + std::string(" ") +
+              pair.second->exchange->name] = pair.second;
+    }
+  } else if (!strcasecmp(b, "local_symbol")) {
+    for (auto& pair : securities()) {
+      if (*pair.second->local_symbol)
+        sec_map[pair.second->local_symbol + std::string(" ") +
+                pair.second->exchange->name] = pair.second;
+    }
+  } else {
+    LOG_FATAL("Invalid file: " << fn);
+  }
+
+  while (std::getline(*ifs, line)) {
+    if (!strcasecmp(line.c_str(), "@end")) break;
+    auto sec = sec_map[line];
+    if (!sec) {
+      LOG_ERROR("Unknown security on line " << line << " of " << fn);
+      continue;
+    }
+    if (used_symbols.size() && used_symbols.find(line) == used_symbols.end())
+      sec = nullptr;
+    out.push_back(sec);
+  }
+  LOG_INFO(out.size() << " securities in " << fn);
+
+  return out;
+}
+
 }  // namespace opentrade
