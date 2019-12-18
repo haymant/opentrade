@@ -1,37 +1,18 @@
-#ifndef SERVER_WS_HPP
-#define SERVER_WS_HPP
+#ifndef SIMPLE_WEB_SERVER_WS_HPP
+#define SIMPLE_WEB_SERVER_WS_HPP
 
+#include "asio_compatibility.hpp"
 #include "crypto.hpp"
+#include "mutex.hpp"
 #include "utility.hpp"
-
 #include <array>
 #include <atomic>
 #include <iostream>
 #include <limits>
 #include <list>
 #include <memory>
-#include <mutex>
 #include <thread>
 #include <unordered_set>
-
-#ifdef USE_STANDALONE_ASIO
-#include <asio.hpp>
-#include <asio/steady_timer.hpp>
-namespace SimpleWeb {
-  using error_code = std::error_code;
-  using errc = std::errc;
-  namespace make_error_code = std;
-} // namespace SimpleWeb
-#else
-#include <boost/asio.hpp>
-#include <boost/asio/steady_timer.hpp>
-namespace SimpleWeb {
-  namespace asio = boost::asio;
-  using error_code = boost::system::error_code;
-  namespace errc = boost::system::errc;
-  namespace make_error_code = boost::system::errc;
-} // namespace SimpleWeb
-#endif
 
 // Late 2017 TODO: remove the following checks and always use std::regex
 #ifdef USE_BOOST_REGEX
@@ -63,16 +44,22 @@ namespace SimpleWeb {
       }
 
       /// Convenience function to return std::string. The stream buffer is consumed.
-      std::string string() noexcept {
+      /// Successive calls will return the same string.
+      const std::string &string() noexcept {
+        if(cached_string)
+          return *cached_string;
+
+        cached_string = std::unique_ptr<std::string>(new std::string());
+
         try {
-          std::string str;
           auto size = streambuf.size();
-          str.resize(size);
-          read(&str[0], static_cast<std::streamsize>(size));
-          return str;
+          cached_string->resize(size);
+          read(&(*cached_string)[0], static_cast<std::streamsize>(size));
+          return *cached_string;
         }
         catch(...) {
-          return std::string();
+          cached_string->clear();
+          return *cached_string;
         }
       }
 
@@ -81,6 +68,7 @@ namespace SimpleWeb {
       InMessage(unsigned char fin_rsv_opcode, std::size_t length) noexcept : std::istream(&streambuf), fin_rsv_opcode(fin_rsv_opcode), length(length) {}
       std::size_t length;
       asio::streambuf streambuf;
+      std::unique_ptr<std::string> cached_string;
     };
 
     /// The buffer is not consumed during send operations.
@@ -92,6 +80,9 @@ namespace SimpleWeb {
 
     public:
       OutMessage() noexcept : std::ostream(&streambuf) {}
+      OutMessage(std::size_t capacity) noexcept : std::ostream(&streambuf) {
+        streambuf.prepare(capacity);
+      }
 
       /// Returns the size of the buffer
       std::size_t size() const noexcept {
@@ -104,7 +95,7 @@ namespace SimpleWeb {
       friend class SocketServer<socket_type>;
 
     public:
-      Connection(std::unique_ptr<socket_type> &&socket_) noexcept : socket(std::move(socket_)), timeout_idle(0), strand(this->socket->get_io_service()), closed(false) {}
+      Connection(std::unique_ptr<socket_type> &&socket_) noexcept : socket(std::move(socket_)), timeout_idle(0), closed(false) {}
 
       std::string method, path, query_string, http_version;
 
@@ -112,43 +103,56 @@ namespace SimpleWeb {
 
       regex::smatch path_match;
 
-      asio::ip::tcp::endpoint remote_endpoint;
-
-      std::string remote_endpoint_address() noexcept {
+      asio::ip::tcp::endpoint remote_endpoint() const noexcept {
         try {
-          return remote_endpoint.address().to_string();
+          return socket->lowest_layer().remote_endpoint();
         }
         catch(...) {
-          return std::string();
         }
+        return asio::ip::tcp::endpoint();
       }
 
-      unsigned short remote_endpoint_port() noexcept {
-        return remote_endpoint.port();
+      /// Deprecated, please use remote_endpoint().address().to_string() instead.
+      DEPRECATED std::string remote_endpoint_address() const noexcept {
+        try {
+          return socket->lowest_layer().remote_endpoint().address().to_string();
+        }
+        catch(...) {
+        }
+        return std::string();
+      }
+
+      /// Deprecated, please use remote_endpoint().port() instead.
+      DEPRECATED unsigned short remote_endpoint_port() const noexcept {
+        try {
+          return socket->lowest_layer().remote_endpoint().port();
+        }
+        catch(...) {
+        }
+        return 0;
       }
 
     private:
       template <typename... Args>
       Connection(std::shared_ptr<ScopeRunner> handler_runner_, long timeout_idle, Args &&... args) noexcept
-          : handler_runner(std::move(handler_runner_)), socket(new socket_type(std::forward<Args>(args)...)), timeout_idle(timeout_idle), strand(socket->get_io_service()), closed(false) {}
+          : handler_runner(std::move(handler_runner_)), socket(new socket_type(std::forward<Args>(args)...)), timeout_idle(timeout_idle), closed(false) {}
 
       std::shared_ptr<ScopeRunner> handler_runner;
 
       std::unique_ptr<socket_type> socket; // Socket must be unique_ptr since asio::ssl::stream<asio::ip::tcp::socket> is not movable
-      std::mutex socket_close_mutex;
 
-      asio::streambuf read_buffer;
+      asio::streambuf streambuf;
       std::shared_ptr<InMessage> fragmented_in_message;
 
       long timeout_idle;
-      std::unique_ptr<asio::steady_timer> timer;
-      std::mutex timer_mutex;
+
+      Mutex timer_mutex;
+      std::unique_ptr<asio::steady_timer> timer GUARDED_BY(timer_mutex);
 
       void close() noexcept {
         error_code ec;
-        std::unique_lock<std::mutex> lock(socket_close_mutex); // The following operations seems to be needed to run sequentially
         socket->lowest_layer().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
-        socket->lowest_layer().close(ec);
+        socket->lowest_layer().cancel(ec);
       }
 
       void set_timeout(long seconds = -1) noexcept {
@@ -158,15 +162,14 @@ namespace SimpleWeb {
           seconds = timeout_idle;
         }
 
-        std::unique_lock<std::mutex> lock(timer_mutex);
+        LockGuard lock(timer_mutex);
 
         if(seconds == 0) {
           timer = nullptr;
           return;
         }
 
-        timer = std::unique_ptr<asio::steady_timer>(new asio::steady_timer(socket->get_io_service()));
-        timer->expires_from_now(std::chrono::seconds(seconds));
+        timer = std::unique_ptr<asio::steady_timer>(new asio::steady_timer(get_socket_executor(*socket), std::chrono::seconds(seconds)));
         std::weak_ptr<Connection> connection_weak(this->shared_from_this()); // To avoid keeping Connection instance alive longer than needed
         timer->async_wait([connection_weak, use_timeout_idle](const error_code &ec) {
           if(!ec) {
@@ -181,37 +184,15 @@ namespace SimpleWeb {
       }
 
       void cancel_timeout() noexcept {
-        std::unique_lock<std::mutex> lock(timer_mutex);
+        LockGuard lock(timer_mutex);
         if(timer) {
-          error_code ec;
-          timer->cancel(ec);
+          try {
+            timer->cancel();
+          }
+          catch(...) {
+          }
         }
       }
-
-      bool generate_handshake(const std::shared_ptr<asio::streambuf> &write_buffer) {
-        std::ostream handshake(write_buffer.get());
-
-        auto header_it = header.find("Sec-WebSocket-Key");
-        if(header_it == header.end())
-          return false;
-
-        static auto ws_magic_string = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-        auto sha1 = Crypto::sha1(header_it->second + ws_magic_string);
-
-        handshake << "HTTP/1.1 101 Web Socket Protocol Handshake\r\n";
-        handshake << "Upgrade: websocket\r\n";
-        handshake << "Connection: Upgrade\r\n";
-        handshake << "Sec-WebSocket-Accept: " << Crypto::Base64::encode(sha1) << "\r\n";
-        handshake << "\r\n";
-
-        return true;
-      }
-
-#if BOOST_VERSION < 106600
-  boost::asio::strand strand;
-#else
-  boost::asio::io_context::strand strand;
-#endif
 
       class OutData {
       public:
@@ -223,59 +204,48 @@ namespace SimpleWeb {
         std::function<void(const error_code)> callback;
       };
 
-      std::list<OutData> send_queue;
+      Mutex send_queue_mutex;
+      std::list<OutData> send_queue GUARDED_BY(send_queue_mutex);
 
-      void send_from_queue() {
+      /// send_queue_mutex must be locked here
+      void send_from_queue() REQUIRES(send_queue_mutex) {
+        std::array<asio::const_buffer, 2> buffers{send_queue.begin()->out_header->streambuf.data(), send_queue.begin()->out_message->streambuf.data()};
         auto self = this->shared_from_this();
-        strand.post([self]() {
-          asio::async_write(*self->socket, self->send_queue.begin()->out_header->streambuf, self->strand.wrap([self](const error_code &ec, std::size_t /*bytes_transferred*/) {
-            auto lock = self->handler_runner->continue_lock();
-            if(!lock)
-              return;
+        asio::async_write(*socket, buffers, [self](const error_code &ec, std::size_t /*bytes_transferred*/) {
+          auto lock = self->handler_runner->continue_lock();
+          if(!lock)
+            return;
+          {
+            LockGuard lock(self->send_queue_mutex);
             if(!ec) {
-              asio::async_write(*self->socket, self->send_queue.begin()->out_message->streambuf.data(), self->strand.wrap([self](const error_code &ec, std::size_t /*bytes_transferred*/) {
-                auto lock = self->handler_runner->continue_lock();
-                if(!lock)
-                  return;
-                if(!ec) {
-                  auto it = self->send_queue.begin();
-                  if(it->callback)
-                    it->callback(ec);
-                  self->send_queue.erase(it);
-                  if(self->send_queue.size() > 0)
-                    self->send_from_queue();
-                }
-                else {
-                  // All handlers in the queue is called with ec:
-                  for(auto &out_data : self->send_queue) {
-                    if(out_data.callback)
-                      out_data.callback(ec);
-                  }
-                  self->send_queue.clear();
-                }
-              }));
+              auto it = self->send_queue.begin();
+              auto callback = std::move(it->callback);
+              self->send_queue.erase(it);
+              if(self->send_queue.size() > 0)
+                self->send_from_queue();
+
+              lock.unlock();
+              if(callback)
+                callback(ec);
             }
             else {
               // All handlers in the queue is called with ec:
+              std::vector<std::function<void(const error_code &)>> callbacks;
               for(auto &out_data : self->send_queue) {
                 if(out_data.callback)
-                  out_data.callback(ec);
+                  callbacks.emplace_back(std::move(out_data.callback));
               }
               self->send_queue.clear();
+
+              lock.unlock();
+              for(auto &callback : callbacks)
+                callback(ec);
             }
-          }));
+          }
         });
       }
 
       std::atomic<bool> closed;
-
-      void read_remote_endpoint() noexcept {
-        try {
-          remote_endpoint = socket->lowest_layer().remote_endpoint();
-        }
-        catch(...) {
-        }
-      }
 
     public:
       /// fin_rsv_opcode: 129=one fragment, text, 130=one fragment, binary, 136=close connection.
@@ -284,9 +254,9 @@ namespace SimpleWeb {
         cancel_timeout();
         set_timeout();
 
-        auto out_header = std::make_shared<OutMessage>();
-
         std::size_t length = out_message->size();
+
+        auto out_header = std::make_shared<OutMessage>(10); // Header is at most 10 bytes
 
         out_header->put(static_cast<char>(fin_rsv_opcode));
         // Unmasked (first length byte<128)
@@ -307,12 +277,10 @@ namespace SimpleWeb {
         else
           out_header->put(static_cast<char>(length));
 
-        auto self = this->shared_from_this();
-        strand.post([self, out_header, out_message, callback]() {
-          self->send_queue.emplace_back(out_header, out_message, callback);
-          if(self->send_queue.size() == 1)
-            self->send_from_queue();
-        });
+        LockGuard lock(send_queue_mutex);
+        send_queue.emplace_back(out_header, out_message, callback);
+        if(send_queue.size() == 1)
+          send_from_queue();
       }
 
       /// Convenience function for sending a string.
@@ -346,10 +314,11 @@ namespace SimpleWeb {
       friend class SocketServerBase<socket_type>;
 
     private:
-      std::unordered_set<std::shared_ptr<Connection>> connections;
-      std::mutex connections_mutex;
+      Mutex connections_mutex;
+      std::unordered_set<std::shared_ptr<Connection>> connections GUARDED_BY(connections_mutex);
 
     public:
+      std::function<StatusCode(std::shared_ptr<Connection>, CaseInsensitiveMultimap &)> on_handshake;
       std::function<void(std::shared_ptr<Connection>)> on_open;
       std::function<void(std::shared_ptr<Connection>, std::shared_ptr<InMessage>)> on_message;
       std::function<void(std::shared_ptr<Connection>, int, const std::string &)> on_close;
@@ -358,7 +327,7 @@ namespace SimpleWeb {
       std::function<void(std::shared_ptr<Connection>)> on_pong;
 
       std::unordered_set<std::shared_ptr<Connection>> get_connections() noexcept {
-        std::unique_lock<std::mutex> lock(connections_mutex);
+        LockGuard lock(connections_mutex);
         auto copy = connections;
         return copy;
       }
@@ -383,6 +352,8 @@ namespace SimpleWeb {
       /// Maximum size of incoming messages. Defaults to architecture maximum.
       /// Exceeding this limit will result in a message_size error code and the connection will be closed.
       std::size_t max_message_size = std::numeric_limits<std::size_t>::max();
+      /// Additional header fields to send when performing WebSocket handshake.
+      CaseInsensitiveMultimap header;
       /// IPv4 address in dotted decimal form or IPv6 address in hexadecimal notation.
       /// If empty, the address will be any address.
       std::string address;
@@ -394,9 +365,9 @@ namespace SimpleWeb {
 
   private:
     class regex_orderable : public regex::regex {
+    public:
       std::string str;
 
-    public:
       regex_orderable(const char *regex_cstr) : regex::regex(regex_cstr), str(regex_cstr) {}
       regex_orderable(const std::string &regex_str) : regex::regex(regex_str), str(regex_str) {}
       bool operator<(const regex_orderable &rhs) const noexcept {
@@ -412,14 +383,16 @@ namespace SimpleWeb {
     /// Returns assigned port. If io_service is not set, an internal io_service is created instead.
     /// Call before accept_and_run().
     unsigned short bind() {
+      std::lock_guard<std::mutex> lock(start_stop_mutex);
+
       asio::ip::tcp::endpoint endpoint;
       if(config.address.size() > 0)
-        endpoint = asio::ip::tcp::endpoint(asio::ip::address::from_string(config.address), config.port);
+        endpoint = asio::ip::tcp::endpoint(make_address(config.address), config.port);
       else
-        endpoint = asio::ip::tcp::endpoint(asio::ip::tcp::v4(), config.port);
+        endpoint = asio::ip::tcp::endpoint(asio::ip::tcp::v6(), config.port);
 
       if(!io_service) {
-        io_service = std::make_shared<asio::io_service>();
+        io_service = std::make_shared<io_context>();
         internal_io_service = true;
       }
 
@@ -443,7 +416,7 @@ namespace SimpleWeb {
 
       if(internal_io_service) {
         if(io_service->stopped())
-          io_service->reset();
+          restart(*io_service);
 
         // If thread_pool_size>1, start m_io_service.run() in (thread_pool_size-1) threads for thread-pooling
         threads.clear();
@@ -471,12 +444,14 @@ namespace SimpleWeb {
 
     /// Stop accepting new connections, and close current connections
     void stop() noexcept {
+      std::lock_guard<std::mutex> lock(start_stop_mutex);
+
       if(acceptor) {
         error_code ec;
         acceptor->close(ec);
 
         for(auto &pair : endpoint) {
-          std::unique_lock<std::mutex> lock(pair.second.connections_mutex);
+          LockGuard lock(pair.second.connections_mutex);
           for(auto &connection : pair.second.connections)
             connection->close();
           pair.second.connections.clear();
@@ -500,7 +475,7 @@ namespace SimpleWeb {
     std::unordered_set<std::shared_ptr<Connection>> get_connections() noexcept {
       std::unordered_set<std::shared_ptr<Connection>> all_connections;
       for(auto &e : endpoint) {
-        std::unique_lock<std::mutex> lock(e.second.connections_mutex);
+        LockGuard lock(e.second.connections_mutex);
         all_connections.insert(e.second.connections.begin(), e.second.connections.end());
       }
       return all_connections;
@@ -520,7 +495,6 @@ namespace SimpleWeb {
      *   connection->query_string=std::move(request->query_string);
      *   connection->http_version=std::move(request->http_version);
      *   connection->header=std::move(request->header);
-     *   connection->remote_endpoint=std::move(*request->remote_endpoint);
      *   socket_server.upgrade(connection);
      * }
      */
@@ -530,10 +504,12 @@ namespace SimpleWeb {
       write_handshake(connection);
     }
 
-    /// If you have your own asio::io_service, store its pointer here before running start().
-    std::shared_ptr<asio::io_service> io_service;
+    /// If you have your own io_context, store its pointer here before running start().
+    std::shared_ptr<io_context> io_service;
 
   protected:
+    std::mutex start_stop_mutex;
+
     bool internal_io_service = false;
 
     std::unique_ptr<asio::ip::tcp::acceptor> acceptor;
@@ -547,17 +523,15 @@ namespace SimpleWeb {
     virtual void accept() = 0;
 
     void read_handshake(const std::shared_ptr<Connection> &connection) {
-      connection->read_remote_endpoint();
-
       connection->set_timeout(config.timeout_request);
-      asio::async_read_until(*connection->socket, connection->read_buffer, "\r\n\r\n", [this, connection](const error_code &ec, std::size_t /*bytes_transferred*/) {
+      asio::async_read_until(*connection->socket, connection->streambuf, "\r\n\r\n", [this, connection](const error_code &ec, std::size_t /*bytes_transferred*/) {
         connection->cancel_timeout();
         auto lock = connection->handler_runner->continue_lock();
         if(!lock)
           return;
         if(!ec) {
-          std::istream stream(&connection->read_buffer);
-          if(RequestMessage::parse(stream, connection->method, connection->path, connection->query_string, connection->http_version, connection->header))
+          std::istream istream(&connection->streambuf);
+          if(RequestMessage::parse(istream, connection->method, connection->path, connection->query_string, connection->http_version, connection->header))
             write_handshake(connection);
         }
       });
@@ -567,31 +541,57 @@ namespace SimpleWeb {
       for(auto &regex_endpoint : endpoint) {
         regex::smatch path_match;
         if(regex::regex_match(connection->path, path_match, regex_endpoint.first)) {
-          auto write_buffer = std::make_shared<asio::streambuf>();
+          auto streambuf = std::make_shared<asio::streambuf>();
+          std::ostream ostream(streambuf.get());
 
-          if(connection->generate_handshake(write_buffer)) {
-            connection->path_match = std::move(path_match);
-            connection->set_timeout(config.timeout_request);
-            asio::async_write(*connection->socket, *write_buffer, [this, connection, write_buffer, &regex_endpoint](const error_code &ec, std::size_t /*bytes_transferred*/) {
-              connection->cancel_timeout();
-              auto lock = connection->handler_runner->continue_lock();
-              if(!lock)
-                return;
-              if(!ec) {
-                connection_open(connection, regex_endpoint.second);
-                read_message(connection, regex_endpoint.second);
-              }
-              else
-                connection_error(connection, regex_endpoint.second, ec);
-            });
+          StatusCode status_code = StatusCode::information_switching_protocols;
+          auto key_it = connection->header.find("Sec-WebSocket-Key");
+          if(key_it == connection->header.end())
+            status_code = StatusCode::client_error_upgrade_required;
+          else {
+            CaseInsensitiveMultimap response_header = config.header;
+            response_header.emplace("Upgrade", "websocket");
+            response_header.emplace("Connection", "Upgrade");
+            static auto ws_magic_string = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+            auto sha1 = Crypto::sha1(key_it->second + ws_magic_string);
+            response_header.emplace("Sec-WebSocket-Accept", Crypto::Base64::encode(sha1));
+
+            if(regex_endpoint.second.on_handshake)
+              status_code = regex_endpoint.second.on_handshake(connection, response_header);
+
+            if(status_code == StatusCode::information_switching_protocols) {
+              ostream << "HTTP/1.1 101 Web Socket Protocol Handshake\r\n";
+              for(auto &header_field : response_header)
+                ostream << header_field.first << ": " << header_field.second << "\r\n";
+              ostream << "\r\n";
+            }
           }
+          if(status_code != StatusCode::information_switching_protocols)
+            ostream << "HTTP/1.1 " + SimpleWeb::status_code(status_code) + "\r\n\r\n";
+
+          connection->path_match = std::move(path_match);
+          connection->set_timeout(config.timeout_request);
+          asio::async_write(*connection->socket, *streambuf, [this, connection, streambuf, &regex_endpoint, status_code](const error_code &ec, std::size_t /*bytes_transferred*/) {
+            connection->cancel_timeout();
+            auto lock = connection->handler_runner->continue_lock();
+            if(!lock)
+              return;
+            if(status_code != StatusCode::information_switching_protocols)
+              return;
+            if(!ec) {
+              connection_open(connection, regex_endpoint.second);
+              read_message(connection, regex_endpoint.second);
+            }
+            else
+              connection_error(connection, regex_endpoint.second, ec);
+          });
           return;
         }
       }
     }
 
     void read_message(const std::shared_ptr<Connection> &connection, Endpoint &endpoint) const {
-      asio::async_read(*connection->socket, connection->read_buffer, asio::transfer_exactly(2), [this, connection, &endpoint](const error_code &ec, std::size_t bytes_transferred) {
+      asio::async_read(*connection->socket, connection->streambuf, asio::transfer_exactly(2), [this, connection, &endpoint](const error_code &ec, std::size_t bytes_transferred) {
         auto lock = connection->handler_runner->continue_lock();
         if(!lock)
           return;
@@ -600,10 +600,10 @@ namespace SimpleWeb {
             read_message(connection, endpoint);
             return;
           }
-          std::istream stream(&connection->read_buffer);
+          std::istream istream(&connection->streambuf);
 
           std::array<unsigned char, 2> first_bytes{};
-          stream.read((char *)&first_bytes[0], 2);
+          istream.read((char *)&first_bytes[0], 2);
 
           unsigned char fin_rsv_opcode = first_bytes[0];
 
@@ -619,15 +619,15 @@ namespace SimpleWeb {
 
           if(length == 126) {
             // 2 next bytes is the size of content
-            asio::async_read(*connection->socket, connection->read_buffer, asio::transfer_exactly(2), [this, connection, &endpoint, fin_rsv_opcode](const error_code &ec, std::size_t /*bytes_transferred*/) {
+            asio::async_read(*connection->socket, connection->streambuf, asio::transfer_exactly(2), [this, connection, &endpoint, fin_rsv_opcode](const error_code &ec, std::size_t /*bytes_transferred*/) {
               auto lock = connection->handler_runner->continue_lock();
               if(!lock)
                 return;
               if(!ec) {
-                std::istream stream(&connection->read_buffer);
+                std::istream istream(&connection->streambuf);
 
                 std::array<unsigned char, 2> length_bytes{};
-                stream.read((char *)&length_bytes[0], 2);
+                istream.read((char *)&length_bytes[0], 2);
 
                 std::size_t length = 0;
                 std::size_t num_bytes = 2;
@@ -642,15 +642,15 @@ namespace SimpleWeb {
           }
           else if(length == 127) {
             // 8 next bytes is the size of content
-            asio::async_read(*connection->socket, connection->read_buffer, asio::transfer_exactly(8), [this, connection, &endpoint, fin_rsv_opcode](const error_code &ec, std::size_t /*bytes_transferred*/) {
+            asio::async_read(*connection->socket, connection->streambuf, asio::transfer_exactly(8), [this, connection, &endpoint, fin_rsv_opcode](const error_code &ec, std::size_t /*bytes_transferred*/) {
               auto lock = connection->handler_runner->continue_lock();
               if(!lock)
                 return;
               if(!ec) {
-                std::istream stream(&connection->read_buffer);
+                std::istream istream(&connection->streambuf);
 
                 std::array<unsigned char, 8> length_bytes{};
-                stream.read((char *)&length_bytes[0], 8);
+                istream.read((char *)&length_bytes[0], 8);
 
                 std::size_t length = 0;
                 std::size_t num_bytes = 8;
@@ -680,12 +680,12 @@ namespace SimpleWeb {
         connection_close(connection, endpoint, status, reason);
         return;
       }
-      asio::async_read(*connection->socket, connection->read_buffer, asio::transfer_exactly(4 + length), [this, connection, length, &endpoint, fin_rsv_opcode](const error_code &ec, std::size_t /*bytes_transferred*/) {
+      asio::async_read(*connection->socket, connection->streambuf, asio::transfer_exactly(4 + length), [this, connection, length, &endpoint, fin_rsv_opcode](const error_code &ec, std::size_t /*bytes_transferred*/) {
         auto lock = connection->handler_runner->continue_lock();
         if(!lock)
           return;
         if(!ec) {
-          std::istream istream(&connection->read_buffer);
+          std::istream istream(&connection->streambuf);
 
           // Read mask
           std::array<unsigned char, 4> mask{};
@@ -731,8 +731,9 @@ namespace SimpleWeb {
             connection->set_timeout();
 
             // Send pong
-            auto empty_send_stream = std::make_shared<OutMessage>();
-            connection->send(empty_send_stream, nullptr, fin_rsv_opcode + 1);
+            auto out_message = std::make_shared<OutMessage>();
+            *out_message << in_message->string();
+            connection->send(out_message, nullptr, fin_rsv_opcode + 1);
 
             if(endpoint.on_ping)
               endpoint.on_ping(connection);
@@ -779,7 +780,7 @@ namespace SimpleWeb {
       connection->set_timeout();
 
       {
-        std::unique_lock<std::mutex> lock(endpoint.connections_mutex);
+        LockGuard lock(endpoint.connections_mutex);
         endpoint.connections.insert(connection);
       }
 
@@ -792,7 +793,7 @@ namespace SimpleWeb {
       connection->set_timeout();
 
       {
-        std::unique_lock<std::mutex> lock(endpoint.connections_mutex);
+        LockGuard lock(endpoint.connections_mutex);
         endpoint.connections.erase(connection);
       }
 
@@ -805,7 +806,7 @@ namespace SimpleWeb {
       connection->set_timeout();
 
       {
-        std::unique_lock<std::mutex> lock(endpoint.connections_mutex);
+        LockGuard lock(endpoint.connections_mutex);
         endpoint.connections.erase(connection);
       }
 
@@ -833,7 +834,7 @@ namespace SimpleWeb {
         if(!lock)
           return;
         // Immediately start accepting a new connection (if io_service hasn't been stopped)
-        if(ec != asio::error::operation_aborted)
+        if(ec != error::operation_aborted)
           accept();
 
         if(!ec) {
@@ -847,4 +848,4 @@ namespace SimpleWeb {
   };
 } // namespace SimpleWeb
 
-#endif /* SERVER_WS_HPP */
+#endif /* SIMPLE_WEB_SERVER_WS_HPP */
