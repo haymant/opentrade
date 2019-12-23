@@ -7,28 +7,49 @@ import mmap
 
 outfile = None
 dump_binary = None
+only_symbols = []
+only_symbol_map = {}
 
 
 def main():
-  if len(sys.argv) < 3:
-    print('usage: convert_tick_file.py <input_tick_file> <output_tick_file>')
+  if len(sys.argv) < 2:
+    print(
+        'usage: convert_tick_file.py <input_tick_file> [output_tick_file] [symbol file]'
+    )
     return
+  if len(sys.argv) > 3:
+    fn = sys.argv[3]
+    if fn == '-': fh = sys.stdin
+    else: fh = open(fn)
+    for ln in fh:
+      only_symbols.append(ln.strip())
   parse(sys.argv[1], callback, pre_callback, post_callback)
 
 
 def pre_callback(symbols, symbol_type, is_text):
   global outfile, dump_binary
   dump_binary = is_text  # dump binary if original is text
-  outfile = open(sys.argv[2], 'w+b')
+  if len(sys.argv) == 2:
+    outfile = sys.stdout
+  else:
+    outfile = open(sys.argv[2], 'w+b')
   outfile.write('@begin ' + symbol_type)
   if dump_binary: outfile.write(' binary')
   outfile.write('\n')
+  if only_symbols:
+    sym2idx = dict([(k, i) for i, k in enumerate(symbols)])
+    only_symbol_map.update(
+        dict([(sym2idx[k], i) for i, k in enumerate(only_symbols)]))
+    symbols = only_symbols
   [outfile.write(x + '\n') for x in symbols]
   outfile.write('@end\n')
 
 
 def callback(symbols, ms, isec, tick_type, px, size, *more):
   global outfile, dump_binary
+  if only_symbol_map:
+    isec = only_symbol_map.get(isec)
+    if isec is None: return
   if dump_binary:
     raw = struct.pack('I', ms) + struct.pack(
         'H', isec) + tick_type + struct.pack('d', px) + struct.pack('I', size)
