@@ -83,7 +83,9 @@ inline void AlgoManager::Register(Instrument* inst) {
 
 void AlgoManager::Modify(Algo* algo, Algo::ParamMapPtr params) {
   if (!algo || !params) return;
-  algo->Async([params, algo]() { algo->OnModify(*params.get()); });
+  algo->Async([params, algo]() {
+    if (algo->is_active()) algo->OnModify(*params.get());
+  });
 }
 
 Algo* AlgoManager::Spawn(Algo::ParamMapPtr params, const std::string& name,

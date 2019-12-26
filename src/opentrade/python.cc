@@ -61,6 +61,22 @@ static inline bool GetValueScalar(const bp::object &value, T *out) {
   return true;
 }
 
+static auto ParseParams(bp::dict params) {
+  auto params_ptr = std::make_shared<Algo::ParamMap>();
+  auto items = params.items();
+  for (auto i = 0u; i < bp::len(items); ++i) {
+    std::string key = bp::extract<std::string>(items[i][0]);
+    ParamDef::Value value;
+    if (!GetValueScalar(items[i][1], &value)) {
+      LOG_ERROR("Invalid '" << key << "' value: "
+                            << bp::extract<const char *>(bp::str(items[i][1])));
+    } else {
+      (*params_ptr)[key] = value;
+    }
+  }
+  return params_ptr;
+}
+
 #ifdef BACKTEST
 #define LOCK() \
   do {         \
@@ -652,37 +668,30 @@ BOOST_PYTHON_MODULE(opentrade) {
                                 },
                                 bp::return_internal_reference<>()))
       .def("start_algo",
-           bp::make_function(+[](Backtest &, const std::string &name,
-                                 bp::dict params) {
-             auto user = AccountManager::Instance().GetUser(0);
-             auto params_ptr = std::make_shared<Algo::ParamMap>();
-             auto items = params.items();
-             for (auto i = 0u; i < bp::len(items); ++i) {
-               std::string key = bp::extract<std::string>(items[i][0]);
-               ParamDef::Value value;
-               if (!GetValueScalar(items[i][1], &value)) {
-                 LOG_ERROR("Invalid '"
-                           << key << "' value: "
-                           << bp::extract<const char *>(bp::str(items[i][1])));
-               } else {
-                 (*params_ptr)[key] = value;
-               }
-             }
-             for (auto &pair : *params_ptr) {
-               if (auto pval = std::get_if<SecurityTuple>(&pair.second)) {
-                 if (!pval->acc) {
-                   pval->acc = AccountManager::Instance().GetSubAccount(0);
-                   params[pair.first].attr("acc") =
-                       bp::object(bp::ptr(pval->acc));
+           bp::make_function(
+               +[](Backtest &, const std::string &name, bp::dict params) {
+                 auto user = AccountManager::Instance().GetUser(0);
+                 auto params_ptr = ParseParams(params);
+                 for (auto &pair : *params_ptr) {
+                   if (auto pval = std::get_if<SecurityTuple>(&pair.second)) {
+                     if (!pval->acc) {
+                       pval->acc = AccountManager::Instance().GetSubAccount(0);
+                       params[pair.first].attr("acc") =
+                           bp::object(bp::ptr(pval->acc));
+                     }
+                   }
                  }
-               }
-             }
-             auto algo =
-                 AlgoManager::Instance().Spawn(params_ptr, name, *user, "", "");
-             if (!algo) {
-               LOG_ERROR("Unknown algo name: " << name);
-             }
-             return algo ? algo->id() : 0;
+                 auto algo = AlgoManager::Instance().Spawn(params_ptr, name,
+                                                           *user, "", "");
+                 if (!algo) {
+                   LOG_ERROR("Unknown algo name: " << name);
+                 }
+                 return algo;
+               },
+               bp::return_internal_reference<>()))
+      .def("modify_algo",
+           bp::make_function(+[](Backtest &, Algo::IdType id, bp::dict params) {
+             AlgoManager::Instance().Modify(id, ParseParams(params));
            }));
 #endif
 }

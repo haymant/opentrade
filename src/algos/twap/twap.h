@@ -29,6 +29,7 @@ class TWAP : public Algo {
   virtual const MarketData& md() { return inst_->md(); }
   virtual void Place(Contract* c) { Algo::Place(*c, inst_); }
   virtual double GetLeaves() noexcept;
+  std::string Modify(const ParamMap& params);
   double RoundPrice(double px) {
     auto tick_size = inst_->sec().GetTickSize(px);
     if (tick_size > 0) {

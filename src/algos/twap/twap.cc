@@ -24,20 +24,30 @@ std::string TWAP::OnStart(const ParamMap& params) noexcept {
   auto seconds = GetParam(params, "ValidSeconds", 0);
   if (seconds < 60) return "Too short ValidSeconds, must be >= 60";
   begin_time_ = GetTime();
-  price_ = GetParam(params, "Price", 0.);
-  if (price_ > 0) price_ = RoundPrice(price_);
-
   end_time_ = begin_time_ + seconds;
-  min_size_ = GetParam(params, "MinSize", 0);
+  auto err = Modify(params);
+  if (!err.empty()) return err;
   if (min_size_ <= 0 && sec->lot_size <= 0) {
     return "MinSize required for security without lot size";
   }
-  if (min_size_ > 0 && sec->lot_size > 0) {
-    min_size_ = std::round(min_size_ / sec->lot_size) * sec->lot_size;
+  if (GetParam(params, "InternalCross", kEmptyStr) == "Yes") {
+    Cross(st_.qty, price_, st_.side, st_.acc, inst_);
   }
-  max_floor_ = GetParam(params, "MaxFloor", 0);
+  Timer();
+  LOG_DEBUG('[' << name() << ' ' << id() << "] started");
+  return {};
+}
+
+std::string TWAP::Modify(const ParamMap& params) {
+  price_ = GetParam(params, "Price", price_);
+  if (price_ > 0) price_ = RoundPrice(price_);
+  min_size_ = GetParam(params, "MinSize", min_size_);
+  if (min_size_ > 0 && st_.sec->lot_size > 0) {
+    min_size_ = std::round(min_size_ / st_.sec->lot_size) * st_.sec->lot_size;
+  }
+  max_floor_ = GetParam(params, "MaxFloor", max_floor_);
   if (min_size_ > 0 && max_floor_ < min_size_) max_floor_ = 0;
-  max_pov_ = GetParam(params, "MaxPov", 0.0);
+  max_pov_ = GetParam(params, "MaxPov", max_pov_);
   if (max_pov_ > 1) max_pov_ = 1;
   auto agg = GetParam(params, "Aggression", kEmptyStr);
   if (agg == "Low")
@@ -50,16 +60,14 @@ std::string TWAP::OnStart(const ParamMap& params) noexcept {
     agg_ = kAggHighest;
   else
     return "Invalid aggression, must be in (Low, Medium, High, Highest)";
-  if (GetParam(params, "InternalCross", kEmptyStr) == "Yes") {
-    Cross(st_.qty, price_, st_.side, st_.acc, inst_);
-  }
-  Timer();
-  LOG_DEBUG('[' << name() << ' ' << id() << "] started");
   return {};
 }
 
 void TWAP::OnModify(const ParamMap& params) noexcept {
-  LOG_DEBUG('[' << name() << ' ' << id() << "] do nothing to OnModify");
+  auto err = Modify(params);
+  if (!err.empty()) {
+    LOG_ERROR('[' << name() << ' ' << id() << "] " << err);
+  }
 }
 
 void TWAP::OnStop() noexcept {
