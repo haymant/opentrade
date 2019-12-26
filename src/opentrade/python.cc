@@ -61,6 +61,7 @@ static inline bool GetValueScalar(const bp::object &value, T *out) {
   return true;
 }
 
+#ifdef BACKTEST
 static auto ParseParams(bp::dict params) {
   auto params_ptr = std::make_shared<Algo::ParamMap>();
   auto items = params.items();
@@ -76,8 +77,6 @@ static auto ParseParams(bp::dict params) {
   }
   return params_ptr;
 }
-
-#ifdef BACKTEST
 #define LOCK() \
   do {         \
   } while (false)

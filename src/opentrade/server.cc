@@ -7,7 +7,6 @@
 #include <mutex>
 #include <thread>
 
-#define DEPRECATED [[deprecated]]
 #include "3rd/simple_web_server/server_http.hpp"
 #include "3rd/simple_websocket_server/server_ws.hpp"
 #include "connection.h"

@@ -1,6 +1,7 @@
 #ifndef SIMPLE_WEB_SERVER_WS_HPP
 #define SIMPLE_WEB_SERVER_WS_HPP
 
+#define DEPRECATED [[deprecated]]
 #include "asio_compatibility.hpp"
 #include "crypto.hpp"
 #include "mutex.hpp"
