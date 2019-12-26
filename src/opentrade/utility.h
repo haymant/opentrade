@@ -42,14 +42,9 @@ const typename V::mapped_type& FindInMap(boost::shared_ptr<V> map,
 }
 
 template <typename M, typename V>
-std::optional<V> GetParam(const M& var_map, const std::string& name,
-                          bool* has = nullptr) {
+inline std::optional<V> GetParam(const M& var_map, const std::string& name) {
   auto it = var_map.find(name);
-  if (it == var_map.end()) {
-    if (has) *has = false;
-    return {};
-  }
-  if (has) *has = true;
+  if (it == var_map.end()) return {};
   if (auto pval = std::get_if<V>(&it->second)) return *pval;
   using T = std::decay_t<V>;
   if constexpr (std::is_same_v<T, double>) {
@@ -59,21 +54,31 @@ std::optional<V> GetParam(const M& var_map, const std::string& name,
 }
 
 template <typename M, typename V>
+inline std::optional<V> GetParam(const M& var_map, const std::string& name,
+                                 bool* has_value) {
+  auto opt = GetParam<M, V>(var_map, name);
+  if (has_value) *has_value = opt.has_value();
+  return opt;
+}
+
+template <typename M, typename V>
 inline V GetParam(const M& var_map, const std::string& name, V default_value,
-                  bool* has = nullptr) {
-  return GetParam<M, V>(var_map, name, has).value_or(default_value);
+                  bool* has_value = nullptr) {
+  return GetParam<M, V>(var_map, name, has_value).value_or(default_value);
 }
 
 template <typename M>
 inline int GetParam(const M& var_map, const std::string& name,
-                    int default_value, bool* has = nullptr) {
-  return GetParam<M, int64_t>(var_map, name, has).value_or(default_value);
+                    int default_value, bool* has_value = nullptr) {
+  return GetParam<M, int64_t>(var_map, name, has_value).value_or(default_value);
 }
 
 template <typename M>
 inline std::string GetParam(const M& var_map, const std::string& name,
-                            const char* default_value, bool* has = nullptr) {
-  return GetParam<M, std::string>(var_map, name, has).value_or(default_value);
+                            const char* default_value,
+                            bool* has_value = nullptr) {
+  return GetParam<M, std::string>(var_map, name, has_value)
+      .value_or(default_value);
 }
 
 template <typename V>

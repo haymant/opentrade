@@ -39,27 +39,35 @@ std::string TWAP::OnStart(const ParamMap& params) noexcept {
 }
 
 std::string TWAP::Modify(const ParamMap& params) {
-  price_ = GetParam(params, "Price", price_);
-  if (price_ > 0) price_ = RoundPrice(price_);
-  min_size_ = GetParam(params, "MinSize", min_size_);
-  if (min_size_ > 0 && st_.sec->lot_size > 0) {
-    min_size_ = std::round(min_size_ / st_.sec->lot_size) * st_.sec->lot_size;
+  bool has_value;
+  price_ = GetParam(params, "Price", price_, &has_value);
+  if (has_value) {
+    if (price_ > 0) price_ = RoundPrice(price_);
   }
-  max_floor_ = GetParam(params, "MaxFloor", max_floor_);
-  if (min_size_ > 0 && max_floor_ < min_size_) max_floor_ = 0;
+  min_size_ = GetParam(params, "MinSize", min_size_, &has_value);
+  if (has_value) {
+    if (min_size_ > 0 && st_.sec->lot_size > 0)
+      min_size_ = std::round(min_size_ / st_.sec->lot_size) * st_.sec->lot_size;
+  }
+  max_floor_ = GetParam(params, "MaxFloor", max_floor_, &has_value);
+  if (has_value) {
+    if (min_size_ > 0 && max_floor_ < min_size_) max_floor_ = 0;
+  }
   max_pov_ = GetParam(params, "MaxPov", max_pov_);
   if (max_pov_ > 1) max_pov_ = 1;
-  auto agg = GetParam(params, "Aggression", kEmptyStr);
-  if (agg == "Low")
-    agg_ = kAggLow;
-  else if (agg == "Medium")
-    agg_ = kAggMedium;
-  else if (agg == "High")
-    agg_ = kAggHigh;
-  else if (agg == "Highest")
-    agg_ = kAggHighest;
-  else
-    return "Invalid aggression, must be in (Low, Medium, High, Highest)";
+  auto agg = GetParam(params, "Aggression", kEmptyStr, &has_value);
+  if (has_value) {
+    if (agg == "Low")
+      agg_ = kAggLow;
+    else if (agg == "Medium")
+      agg_ = kAggMedium;
+    else if (agg == "High")
+      agg_ = kAggHigh;
+    else if (agg == "Highest")
+      agg_ = kAggHighest;
+    else
+      return "Invalid aggression, must be in (Low, Medium, High, Highest)";
+  }
   return {};
 }
 
