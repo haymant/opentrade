@@ -615,7 +615,7 @@ BOOST_PYTHON_MODULE(opentrade) {
 #ifdef BACKTEST
                 if (!acc)
                   acc = Backtest::Instance().CreateSubAccount(
-                      name.empty() ? "backtest" : name);
+                      name.empty() ? "test" : name);
 #endif
                 return acc;
               },
@@ -760,6 +760,9 @@ void PrintPyError(const char *from, bool fatal) {
   }
   PyErr_Restore(ptype, pvalue, ptraceback);
   PyErr_Clear();
+#ifdef BACKTEST
+  fatal = true;
+#endif
   if (fatal) {
     LOG2_FATAL(from << "\n" << result);
   } else {
