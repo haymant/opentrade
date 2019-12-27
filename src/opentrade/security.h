@@ -63,8 +63,8 @@ struct Exchange : public ParamsBase {
 
   bool IsInTradePeriod() const {
     auto t = GetSeconds();
-    return (break_start <= 0 || (t < break_start || t > break_end)) &&
-           (trade_start <= 0 || (t > trade_start && t < trade_end()));
+    return (break_start <= 0 || (t < break_start || t >= break_end)) &&
+           (trade_start <= 0 || (t >= trade_start && t < trade_end()));
   }
 
   Security* Get(const std::string& name) const {

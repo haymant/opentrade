@@ -5,8 +5,8 @@ import opensim
 
 tz = 'US/Eastern'
 opentick = '127.0.0.1/opentrade'
-database = 'test:test@iraut@127.0.0.1:5432/opentrade'
-ctx, data = init(vars())
+database = 'test:test@127.0.0.1:5432/opentrade'
+ctx, data = opensim.init(vars())
 '''
 
 symbol = 'MSFT US'
@@ -20,6 +20,8 @@ def on_start(self):
   df = df.iloc[::-1].cumprod().iloc[::-1]
   series = [df.iloc[i] for i in range(len(df))]
   sec.set_adj([(int(x.name.strftime('%Y%m%d')), x.px, x.vol) for x in series])
+  # problem: tick_size can not be handled accurately
+  # alternatively: use Position::Adjust to adjust position yourself
   '''
   # sec.set_adj(((20171017, 0.25, 4), (20171020, 0.5, 2))) # forward adj
   log_info('backtest started')

@@ -117,8 +117,8 @@ const ParamDefs& TWAP::GetParamDefs() noexcept {
 }
 
 double TWAP::GetLeaves() noexcept {
-  auto ratio = std::min(1., (GetTime() - begin_time_ + 1) /
-                                (0.8 * (end_time_ - begin_time_) + 1));
+  auto ratio = std::min(
+      1., (GetTime() - begin_time_ + 1) / (1. * (end_time_ - begin_time_) + 1));
   auto expect = st_.qty * ratio;
   return expect - inst_->total_exposure();
 }
