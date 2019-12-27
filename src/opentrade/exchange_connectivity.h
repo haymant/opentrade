@@ -13,7 +13,7 @@ struct ExchangeConnectivityAdapter : public virtual NetworkAdapter {
                  int64_t transaction_time = 0);
   void HandleSuspended(Order::IdType id, const std::string& order_id,
                        int64_t transaction_time = 0);
-  void HandlePendingNew(Order::IdType id, const std::string& text,
+  void HandlePendingNew(Order::IdType id, const std::string& text = {},
                         int64_t transaction_time = 0);
   void HandlePendingCancel(Order::IdType id, Order::IdType orig_id,
                            int64_t transaction_time = 0);
@@ -22,8 +22,9 @@ struct ExchangeConnectivityAdapter : public virtual NetworkAdapter {
                   bool is_partial = false,
                   ExecTransType exec_trans_type = kTransNew,
                   Confirmation::StrMapPtr misc = Confirmation::StrMapPtr{});
-  void HandleCanceled(Order::IdType id, Order::IdType orig_id,
-                      const std::string& text, int64_t transaction_time = 0);
+  void HandleCanceled(Order::IdType id, Order::IdType orig_id = 0,
+                      const std::string& text = {},
+                      int64_t transaction_time = 0);
   void HandleNewRejected(Order::IdType id, const std::string& text,
                          int64_t transaction_time = 0);
   void HandleCancelRejected(Order::IdType id, Order::IdType orig_id,
