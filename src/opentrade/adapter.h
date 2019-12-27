@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "task_pool.h"
 #include "utility.h"
 
 namespace opentrade {
@@ -68,9 +69,11 @@ class NetworkAdapter : public Adapter {
   virtual void Reconnect() noexcept {}
   virtual void Stop() noexcept = 0;
   virtual bool connected() const noexcept { return 1 == connected_; }
+  auto& tp() { return tp_; }
 
  protected:
   tbb::atomic<int> connected_ = 0;
+  TaskPool tp_;
 };
 
 inline const std::string kAdapterPrefixes[] = {"", "ec_", "md_", "cm_"};

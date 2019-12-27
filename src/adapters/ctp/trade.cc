@@ -53,7 +53,6 @@ class Trade : public CThostFtdcTraderSpi,
   };
   tbb::concurrent_unordered_map<unsigned, Order> orders_;
   std::ofstream of_;
-  opentrade::TaskPool tp_;
   std::atomic<int> request_counter_ = 0;
 };
 

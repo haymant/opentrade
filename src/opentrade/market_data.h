@@ -262,7 +262,6 @@ class MarketDataAdapter : public virtual NetworkAdapter {
  protected:
   std::atomic<int> request_counter_ = 0;
   tbb::concurrent_unordered_set<const opentrade::Security*> subs_;
-  TaskPool tp_;
 
  private:
   MarketDataMap* md_ = nullptr;

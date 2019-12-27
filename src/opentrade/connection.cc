@@ -607,11 +607,10 @@ void Connection::HandleMessageSync(const std::string& msg,
         }
         std::this_thread::sleep_for(std::chrono::seconds(1));
         auto& ecs = ExchangeConnectivityManager::Instance().adapters();
-        for (auto& it : ecs) {
-          it.second->Stop();
-        }
+        for (auto& it : ecs) it.second->Stop();
         std::this_thread::sleep_for(std::chrono::seconds(1));
         kTimerTaskPool.Stop(false);
+        for (auto& it : ecs) it.second->tp().Stop(false);
         kDatabaseTaskPool.Stop(true);
         kWriteTaskPool.Stop(true);
         self->Send(json{"shutdown", "done"});
