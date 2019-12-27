@@ -28,6 +28,16 @@ struct LockGIL {
   static inline std::string test_token_saved;
 };
 
+static inline double GetDouble(const bp::object &obj) {
+  auto ptr = obj.ptr();
+  if (PyFloat_Check(ptr)) return PyFloat_AsDouble(ptr);
+  if (PyLong_Check(ptr)) return PyLong_AsLong(ptr);
+#if PY_MAJOR_VERSION < 3
+  if (PyInt_Check(ptr)) return PyInt_AsLong(ptr);
+#endif
+  return 0;
+}
+
 template <typename T>
 static inline bool GetValueScalar(const bp::object &value, T *out) {
   auto ptr = value.ptr();
@@ -260,6 +270,19 @@ BOOST_PYTHON_MODULE(opentrade) {
                 << ", commission=" << p.commission
                 << ", realized_pnl=" << p.realized_pnl << ")";
              return ss.str();
+           })
+      .def("adjust",
+           +[](Position &p, bp::object px, bp::object vol) {
+             auto px_adj = GetDouble(px);
+             auto vol_adj = GetDouble(vol);
+             if (px_adj <= 0 || vol_adj <= 0) return;
+             p.avg_px *= px_adj;
+             p.qty *= vol_adj;
+             p.cx_qty *= vol_adj;
+             p.total_bought_qty *= vol_adj;
+             p.total_sold_qty *= vol_adj;
+             p.total_outstanding_buy_qty *= vol_adj;
+             p.total_outstanding_sell_qty *= vol_adj;
            })
       .def_readonly("qty", &Position::qty)
       .def_readonly("cx_qty", &Position::cx_qty)
@@ -590,7 +613,9 @@ BOOST_PYTHON_MODULE(opentrade) {
               +[](const std::string &name) {
                 auto acc = AccountManager::Instance().GetSubAccount(name);
 #ifdef BACKTEST
-                if (!acc) acc = Backtest::Instance().CreateSubAccount(name);
+                if (!acc)
+                  acc = Backtest::Instance().CreateSubAccount(
+                      name.empty() ? "backtest" : name);
 #endif
                 return acc;
               },
@@ -647,7 +672,8 @@ BOOST_PYTHON_MODULE(opentrade) {
            })
       .def("skip", &Backtest::Skip)
       .def("set_timeout",
-           +[](Backtest &, bp::object func, double seconds) {
+           +[](Backtest &, bp::object func, bp::object seconds_obj) {
+             auto seconds = GetDouble(seconds_obj);
              if (seconds < 0) seconds = 0;
              kTimers.emplace(kTime + seconds * kMicroInSec, [func]() {
                try {
@@ -667,27 +693,26 @@ BOOST_PYTHON_MODULE(opentrade) {
                                 },
                                 bp::return_internal_reference<>()))
       .def("start_algo",
-           bp::make_function(
-               +[](Backtest &, const std::string &name, bp::dict params) {
-                 auto user = AccountManager::Instance().GetUser(0);
-                 auto params_ptr = ParseParams(params);
-                 for (auto &pair : *params_ptr) {
-                   if (auto pval = std::get_if<SecurityTuple>(&pair.second)) {
-                     if (!pval->acc) {
-                       pval->acc = AccountManager::Instance().GetSubAccount(0);
-                       params[pair.first].attr("acc") =
-                           bp::object(bp::ptr(pval->acc));
-                     }
-                   }
+           bp::make_function(+[](Backtest &, const std::string &name,
+                                 bp::dict params) {
+             auto user = AccountManager::Instance().GetUser(0);
+             auto params_ptr = ParseParams(params);
+             for (auto &pair : *params_ptr) {
+               if (auto pval = std::get_if<SecurityTuple>(&pair.second)) {
+                 if (!pval->acc) {
+                   pval->acc = AccountManager::Instance().GetSubAccount(0);
+                   params[pair.first].attr("acc") =
+                       bp::object(bp::ptr(pval->acc));
                  }
-                 auto algo = AlgoManager::Instance().Spawn(params_ptr, name,
-                                                           *user, "", "");
-                 if (!algo) {
-                   LOG_ERROR("Unknown algo name: " << name);
-                 }
-                 return algo;
-               },
-               bp::return_internal_reference<>()))
+               }
+             }
+             auto algo =
+                 AlgoManager::Instance().Spawn(params_ptr, name, *user, "", "");
+             if (!algo) {
+               LOG_ERROR("Unknown algo name: " << name);
+             }
+             return algo ? algo->id() : 0;
+           }))
       .def("modify_algo",
            bp::make_function(+[](Backtest &, Algo::IdType id, bp::dict params) {
              AlgoManager::Instance().Modify(id, ParseParams(params));
@@ -740,16 +765,6 @@ void PrintPyError(const char *from, bool fatal) {
   } else {
     LOG2_ERROR(from << "\n" << result);
   }
-}
-
-static inline double GetDouble(const bp::object &obj) {
-  auto ptr = obj.ptr();
-  if (PyFloat_Check(ptr)) return PyFloat_AsDouble(ptr);
-  if (PyLong_Check(ptr)) return PyLong_AsLong(ptr);
-#if PY_MAJOR_VERSION < 3
-  if (PyInt_Check(ptr)) return PyInt_AsLong(ptr);
-#endif
-  return 0;
 }
 
 bp::object GetCallable(const bp::object &m, const char *name) {
