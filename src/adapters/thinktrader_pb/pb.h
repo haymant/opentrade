@@ -3,6 +3,7 @@
 
 #include "opentrade/exchange_connectivity.h"
 
+// http://www.thinktrader.net/, 迅投
 class PB : public opentrade::ExchangeConnectivityAdapter {
  public:
   void Start() noexcept override;
@@ -20,9 +21,8 @@ class PB : public opentrade::ExchangeConnectivityAdapter {
     std::string mode;
     std::string symbol;
   };
-  std::unordered_map<int64_t, Order> orders_;    // use map for sorted id
-  std::unordered_set<int64_t> pending_cancels_;  // use set for avoiding
-                                                 // duplicate
+  std::unordered_map<int64_t, Order> orders_;
+  std::unordered_set<int64_t> pending_cancels_;
   std::unordered_set<std::string> trades_readed_;
   std::unordered_map<int64_t, std::string> status_;
   int interval_ = 1000;  // ms
