@@ -265,8 +265,10 @@ int main(int argc, char *argv[]) {
   if (opentick_url.size())
     opentrade::OpenTick::Instance().Initialize(opentick_url);
 
+#ifndef BACKTEST
   AlgoManager::Instance().AddAdapterTmpl<opentrade::BarHandler<>>();
   AlgoManager::Instance().AddAdapterTmpl<opentrade::ConsolidationHandler>();
+#endif
 
   for (auto &p : MarketDataManager::Instance().adapters()) {
     p.second->Start();
