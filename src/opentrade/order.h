@@ -148,7 +148,7 @@ struct Confirmation {
   typedef std::shared_ptr<Confirmation> Ptr;
   Order* order = nullptr;
   std::string exec_id;
-  std::string order_id;
+  std::string order_id;  // exchange order id
   std::string text;
   OrderStatus exec_type = kOrderStatusUnknown;
   ExecTransType exec_trans_type = kTransNew;

@@ -142,24 +142,33 @@ typedef ContainerWrapper<SecuritiesPtr> SecuritiesWrapper;
 
 BOOST_PYTHON_MODULE(opentrade) {
   bp::enum_<OrderSide>("OrderSide")
+      .value("unknown", kOrderSideUnknown)
       .value("buy", kBuy)
       .value("sell", kSell)
       .value("short", kShort);
 
   bp::enum_<OrderType>("OrderType")
+      .value("unknown", kOrderTypeUnknown)
       .value("market", kMarket)
       .value("limit", kLimit)
       .value("stop", kStop)
       .value("stop_limit", kStopLimit)
       .value("otc", kOTC);
 
+  bp::enum_<PositionEffect>("PositionEffect")
+      .value("unknown", kPositionEffectUnknown)
+      .value("close_position", kClosePosition)
+      .value("open_position", kOpenPosition);
+
   bp::enum_<ExecTransType>("ExecTransType")
+      .value("unknown", kExecTransTypeUnknown)
       .value("new", kTransNew)
       .value("cancel", kTransCancel)
       .value("correct", kTransCorrect)
       .value("status", kTransStatus);
 
   bp::enum_<OrderStatus>("OrderStatus")
+      .value("unknown", kOrderStatusUnknown)
       .value("new", kNew)
       .value("partially_filled", kPartiallyFilled)
       .value("filled", kFilled)
@@ -179,9 +188,11 @@ BOOST_PYTHON_MODULE(opentrade) {
       .value("unconfirmed_new", kUnconfirmedNew)
       .value("unconfirmed_cancel", kUnconfirmedCancel)
       .value("unconfirmed_replace", kUnconfirmedReplace)
-      .value("cancel_rejected", kCancelRejected);
+      .value("cancel_rejected", kCancelRejected)
+      .value("comment", kComment);
 
   bp::enum_<TimeInForce>("TimeInForce")
+      .value("unknown", kTimeInForceUnknonw)
       .value("day", kDay)
       .value("gtc", kGoodTillCancel)
       .value("opg", kAtTheOpening)
@@ -426,6 +437,7 @@ BOOST_PYTHON_MODULE(opentrade) {
       .def_readwrite("stop_price", &Contract::stop_price)
       .def_readwrite("side", &Contract::side)
       .def_readwrite("tif", &Contract::tif)
+      .def_readwrite("position_effect", &Contract::position_effect)
       .def_readwrite("type", &Contract::type);
 
   bp::class_<Bar>("Bar", bp::no_init)
@@ -481,6 +493,20 @@ BOOST_PYTHON_MODULE(opentrade) {
       });
 
   bp::class_<Confirmation>("Confirmation", bp::no_init)
+      .def("__repr__",
+           +[](const Confirmation &p) {
+             std::stringstream ss;
+             ss << "Confirmation(order=" << p.order->id << ", exec_type="
+                << bp::extract<const char *>(bp::str(p.exec_type))
+                << ", last_px=" << p.last_px
+                << ", last_shares=" << p.last_shares
+                << ", transaction_time=" << p.transaction_time
+                << ", exec_trans_type="
+                << bp::extract<const char *>(bp::str(p.exec_trans_type))
+                << ", exec_id=" << p.exec_id << ", order_id=" << p.order_id
+                << ", text=" << p.text << ")";
+             return ss.str();
+           })
       .add_property("order", bp::make_function(
                                  +[](const Confirmation &c) { return c.order; },
                                  bp::return_internal_reference<>()))
@@ -500,11 +526,30 @@ BOOST_PYTHON_MODULE(opentrade) {
       .def_readonly("last_px", &Confirmation::last_px);
 
   bp::class_<Order, bp::bases<Contract>>("Order", bp::no_init)
+      .def("__repr__",
+           +[](const Order &p) {
+             std::stringstream ss;
+             ss << "Order(id=" << p.id
+                << ", status=" << bp::extract<const char *>(bp::str(p.status))
+                << ", side=" << bp::extract<const char *>(bp::str(p.side))
+                << ", qty=" << p.qty << ", price=" << p.price
+                << ", stop_price=" << p.stop_price << ", sec=" << p.sec->symbol
+                << ", acc=" << p.acc->name
+                << ", type=" << bp::extract<const char *>(bp::str(p.type))
+                << ", tif=" << bp::extract<const char *>(bp::str(p.tif))
+                << ", tm=" << p.tm << ", orig_id=" << p.orig_id
+                << ", avg_px=" << p.avg_px << ", cum_qty=" << p.cum_qty
+                << ", position_effect="
+                << bp::extract<const char *>(bp::str(p.position_effect))
+                << ", leaves_qty=" << p.leaves_qty << ")";
+             return ss.str();
+           })
       .add_property("instrument",
                     bp::make_function(+[](const Order &o) { return o.inst; },
                                       bp::return_internal_reference<>()))
       .def_readonly("status", &Order::status)
       .def_readonly("id", &Order::id)
+      .def_readonly("tm", &Order::tm)
       .def_readonly("orig_id", &Order::orig_id)
       .def_readonly("avg_px", &Order::avg_px)
       .def_readonly("cum_qty", &Order::cum_qty)
@@ -687,6 +732,8 @@ BOOST_PYTHON_MODULE(opentrade) {
                                                 const SubAccount &acc) {
              AlgoManager::Instance().Stop(sec.id, acc.id);
            }))
+      .add_property("start_date", &Backtest::start_date)
+      .add_property("end_date", &Backtest::end_date)
       .add_property("user", bp::make_function(
                                 +[](Backtest &) {
                                   return AccountManager::Instance().GetUser(0);

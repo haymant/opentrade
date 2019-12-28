@@ -9,6 +9,7 @@
 #include <sstream>
 
 #include "algo.h"
+#include "backtest.h"
 #include "connection.h"
 #include "database.h"
 #include "exchange_connectivity.h"
@@ -133,6 +134,7 @@ void GlobalOrderBook::Handle(Confirmation::Ptr cm, bool offline) {
   if (cm->order->inst) AlgoManager::Instance().Handle(cm);
   if (offline) return;
 #ifdef BACKTEST
+  Backtest::Instance().OnConfirmation(*cm);
   return;
 #endif
   kWriteTaskPool.AddTask([this, cm]() {

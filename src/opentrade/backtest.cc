@@ -292,7 +292,16 @@ SubAccount* Backtest::CreateSubAccount(const std::string& name,
 }
 
 void Backtest::Start(const std::string& py,
-                     const std::string& default_tick_file) {
+                     const std::string& default_tick_file, int start_date,
+                     int end_date) {
+  start_date_ = bp::import("datetime")
+                    .attr("date")(start_date / 10000, start_date % 10000 / 100,
+                                  start_date % 100);
+  end_date_ =
+      bp::import("datetime")
+          .attr("date")(end_date / 10000, end_date % 10000 / 100,
+                        end_date % 100)
+          .attr("__radd__")(bp::import("datetime").attr("timedelta")(1));
   obj_ = bp::object(bp::ptr(this));
 
   for (auto& pair : SecurityManager::Instance().securities()) {
@@ -319,6 +328,7 @@ void Backtest::Start(const std::string& py,
   if (simulators_.empty()) AddSimulator(default_tick_file);
   on_start_ = GetCallable(m, "on_start");
   on_start_of_day_ = GetCallable(m, "on_start_of_day");
+  on_confirmation_ = GetCallable(m, "on_confirmation");
   on_end_ = GetCallable(m, "on_end");
   if (!on_end_) on_end_ = GetCallable(m, "on_stop");
   on_end_of_day_ = GetCallable(m, "on_end_of_day");
@@ -357,6 +367,15 @@ void Backtest::End() {
     }
   }
   of_.close();
+}
+
+void Backtest::OnConfirmation(const Confirmation& cm) {
+  if (!on_confirmation_) return;
+  try {
+    on_confirmation_(obj_, bp::ptr(&cm));
+  } catch (const bp::error_already_set& err) {
+    PrintPyError("on_confirmation", true);
+  }
 }
 
 }  // namespace opentrade
