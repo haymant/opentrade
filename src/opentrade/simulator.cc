@@ -34,8 +34,8 @@ inline double Simulator::TryFillBuy(double px, double qty,
                boost::uuids::to_string(kUuidGen()), 0, tuple.leaves > 0);
     auto algo_id = tuple.order->inst ? tuple.order->inst->algo().id() : 0;
     of_ << std::setprecision(15) << GetNowStr() << ','
-        << tuple.order->sec->symbol << ',' << (tuple.order->IsBuy() ? 'B' : 'S')
-        << ',' << n << ',' << it->first << ',' << algo_id << '\n';
+        << tuple.order->sec->symbol << ",B," << n << ',' << it->first << ','
+        << algo_id << '\n';
     if (tuple.leaves <= 0) {
       actives_of_sec->all.erase(tuple.order->id);
       it = std::reverse_iterator(
@@ -62,8 +62,8 @@ inline double Simulator::TryFillSell(double px, double qty,
                boost::uuids::to_string(kUuidGen()), 0, tuple.leaves > 0);
     auto algo_id = tuple.order->inst ? tuple.order->inst->algo().id() : 0;
     of_ << std::setprecision(15) << GetNowStr() << ','
-        << tuple.order->sec->symbol << ',' << (tuple.order->IsBuy() ? 'B' : 'S')
-        << ',' << n << ',' << it->first << ',' << algo_id << '\n';
+        << tuple.order->sec->symbol << ",S," << n << ',' << it->first << ','
+        << algo_id << '\n';
     if (tuple.leaves <= 0) {
       actives_of_sec->all.erase(tuple.order->id);
       it = actives_of_sec->sells.erase(it);

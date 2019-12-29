@@ -44,13 +44,16 @@ std::string TWAP::Modify(const ParamMap& params) {
   if (has_value) {
     if (price_ > 0) price_ = RoundPrice(price_);
   }
+  auto lot_size = inst_->sec().lot_size;
   min_size_ = GetParam(params, "MinSize", min_size_, &has_value);
   if (has_value) {
-    if (min_size_ > 0 && st_.sec->lot_size > 0)
-      min_size_ = std::round(min_size_ / st_.sec->lot_size) * st_.sec->lot_size;
+    if (min_size_ > 0 && lot_size > 0)
+      min_size_ = std::round(min_size_ / lot_size) * lot_size;
   }
   max_floor_ = GetParam(params, "MaxFloor", max_floor_, &has_value);
   if (has_value) {
+    if (max_floor_ > 0 && lot_size > 0)
+      max_floor_ = max_floor_ / lot_size * lot_size;
     if (min_size_ > 0 && max_floor_ < min_size_) max_floor_ = 0;
   }
   max_pov_ = GetParam(params, "MaxPov", max_pov_);
