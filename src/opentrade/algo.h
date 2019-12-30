@@ -161,8 +161,9 @@ class Instrument {
   double total_outstanding_qty() const {
     return Round6(outstanding_buy_qty_ + outstanding_sell_qty_);
   }
-  double total_exposure() const {
-    return Round6(total_qty() - total_cx_qty() + total_outstanding_qty());
+  double total_exposure(bool ignore_cx = false) const {
+    return Round6(total_qty() - (ignore_cx ? total_cx_qty() : 0) +
+                  total_outstanding_qty());
   }
   size_t id() const { return id_; }
 
