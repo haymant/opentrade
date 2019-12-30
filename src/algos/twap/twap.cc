@@ -33,6 +33,14 @@ std::string TWAP::OnStart(const ParamMap& params) noexcept {
   if (GetParam(params, "InternalCross", kEmptyStr) == "Yes") {
     Cross(st_.qty, price_, st_.side, st_.acc, inst_);
   }
+  // percent of randomness added to the schedule.
+  random_ = GetParam(params, "Randomize", 0);
+  gen_.seed(std::random_device()());
+  // convert tilt level to power, 10 is most aggressive which try to finish
+  // about half of the order in 1% of time; -10 is most passive, which only
+  // finish less than 1% of order in first half of the time, and 20% in 80% of
+  // the time.
+  tilt_ = exp(-GetParam(params, "Tilt", 0) / 5);
   Timer();
   LOG_DEBUG('[' << name() << ' ' << id() << "] started");
   return {};
@@ -115,14 +123,22 @@ const ParamDefs& TWAP::GetParamDefs() noexcept {
       {"Aggression", ParamDef::ValueVector{"Low", "Medium", "High", "Highest"},
        true},
       {"InternalCross", ParamDef::ValueVector{"Yes", "No"}, false},
+      {"Randomize", 0, false, 0, 10},
+      {"Tilt", 0, false, -10, 10},
   };
   return defs;
 }
 
 double TWAP::GetLeaves() noexcept {
+  // get normalized time
   auto ratio = std::min(
-      1., (GetTime() - begin_time_ + 1) / (1. * (end_time_ - begin_time_) + 1));
-  auto expect = st_.qty * ratio;
+      1., (GetTime() - begin_time_ + 1) /
+              (std::max(static_cast<double>(0.8 * (end_time_ - begin_time_)),
+                        static_cast<double>(end_time_ - begin_time_ - 300.)) +
+               1));
+  auto expect = pow(ratio, tilt_);
+  expect = std::min(std::max(0., expect + random_ * rand_(gen_, range_)), 1.);
+  expect *= st_.qty;
   return expect - inst_->total_exposure();
 }
 
@@ -142,7 +158,6 @@ void TWAP::Timer() {
   auto last_px = RoundPrice(md.trade.close);
   auto mid_px = 0.;
   if (ask > bid && bid > 0) mid_px = RoundPrice((ask + bid) / 2);
-
   Contract c;
   switch (agg_) {
     case kAggLow:
