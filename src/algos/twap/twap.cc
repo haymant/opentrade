@@ -1,8 +1,21 @@
 #include "twap.h"
 
+#include <cmath>
+#include <random>
+
 #include <opentrade/logger.h>
 
 namespace opentrade {
+
+static std::random_device kRandomDevice;
+static thread_local std::mt19937 kRandomGen{
+#ifdef BACKTEST
+    0
+#else
+    kRandomDevice()
+#endif
+};
+static thread_local std::uniform_real_distribution<> kRandom{-0.01, 0.01};
 
 Instrument* TWAP::Subscribe() {
   return Algo::Subscribe(*st_.sec, st_.src, false);
@@ -33,14 +46,6 @@ std::string TWAP::OnStart(const ParamMap& params) noexcept {
   if (GetParam(params, "InternalCross", kEmptyStr) == "Yes") {
     Cross(st_.qty, price_, st_.side, st_.acc, inst_);
   }
-  // percent of randomness added to the schedule.
-  random_ = GetParam(params, "Randomize", 0);
-  gen_.seed(std::random_device()());
-  // convert tilt level to power, 10 is most aggressive which try to finish
-  // about half of the order in 1% of time; -10 is most passive, which only
-  // finish less than 1% of order in first half of the time, and 20% in 80% of
-  // the time.
-  tilt_ = exp(-GetParam(params, "Tilt", 0) / 5);
   Timer();
   LOG_DEBUG('[' << name() << ' ' << id() << "] started");
   return {};
@@ -79,6 +84,14 @@ std::string TWAP::Modify(const ParamMap& params) {
     else
       return "Invalid aggression, must be in (Low, Medium, High, Highest)";
   }
+  // percent of randomness added to the schedule.
+  random_ = GetParam(params, "Randomize", random_);
+  // convert tilt level to power, 10 is most aggressive which try to finish
+  // about half of the order in 1% of time; -10 is most passive, which only
+  // finish less than 1% of order in first half of the time, and 20% in 80% of
+  // the time.
+  tilt_ = GetParam(params, "Tilt", tilt_, &has_value);
+  if (has_value) tilt_ = exp(-tilt_) / 5;
   return {};
 }
 
@@ -113,32 +126,21 @@ void TWAP::OnConfirmation(const Confirmation& cm) noexcept {
 }
 
 const ParamDefs& TWAP::GetParamDefs() noexcept {
-  static ParamDefs defs{
-      {"Security", SecurityTuple{}, true},
-      {"Price", 0.0, false, 0, 10000000, 7},
-      {"ValidSeconds", 300, true, 60},
-      {"MinSize", 0, false, 0, 10000000},
-      {"MaxFloor", 0, false, 0, 10000000},
-      {"MaxPov", 0.0, false, 0, 1, 2},
-      {"Aggression", ParamDef::ValueVector{"Low", "Medium", "High", "Highest"},
-       true},
-      {"InternalCross", ParamDef::ValueVector{"Yes", "No"}, false},
-      {"Randomize", 0, false, 0, 10},
-      {"Tilt", 0, false, -10, 10},
-  };
+  static ParamDefs defs =
+      CombineParamDefs(kCommonParamDefs, ParamDefs{
+                                             {"Randomize", 0, false, 0, 10},
+                                             {"Tilt", 0, false, -10, 10},
+                                         });
   return defs;
 }
 
 double TWAP::GetLeaves() noexcept {
   // get normalized time
-  auto ratio = std::min(
-      1., (GetTime() - begin_time_ + 1) /
-              (std::max(static_cast<double>(0.8 * (end_time_ - begin_time_)),
-                        static_cast<double>(end_time_ - begin_time_ - 300.)) +
-               1));
-  auto expect = pow(ratio, tilt_);
-  expect = std::min(std::max(0., expect + random_ * rand_(gen_, range_)), 1.);
-  expect *= st_.qty;
+  auto ratio =
+      (GetTime() - begin_time_ + 1.) / ((end_time_ - begin_time_) + 1.);
+  if (tilt_ != 1.) ratio = pow(ratio, tilt_);
+  if (random_ != 0.) ratio += random_ * kRandom(kRandomGen);
+  auto expect = st_.qty * ratio;
   return expect - inst_->total_exposure();
 }
 

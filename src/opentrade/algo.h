@@ -105,6 +105,24 @@ class Algo : public Adapter {
   void Cross(double qty, double price, OrderSide side, const SubAccount* acc,
              Instrument* inst);
 
+  static inline ParamDefs kCommonParamDefs{
+      {"Security", SecurityTuple{}, true},
+      {"Price", 0.0, false, 0, 10000000, 7},
+      {"ValidSeconds", 300, true, 60},
+      {"MinSize", 0, false, 0, 10000000},
+      {"MaxFloor", 0, false, 0, 10000000},
+      {"MaxPov", 0.0, false, 0, 1, 2},
+      {"Aggression", ParamDef::ValueVector{"Low", "Medium", "High", "Highest"},
+       true},
+      {"InternalCross", ParamDef::ValueVector{"Yes", "No"}, false},
+  };
+
+  static auto CombineParamDefs(const ParamDefs& a, const ParamDefs& b) {
+    ParamDefs c = a;
+    c.insert(c.begin(), b.begin(), b.end());
+    return c;
+  }
+
  private:
   const User* user_ = nullptr;
   bool is_active_ = true;

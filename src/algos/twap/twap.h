@@ -1,9 +1,6 @@
 #ifndef ALGOS_TWAP_TWAP_H_
 #define ALGOS_TWAP_TWAP_H_
 
-#include <cmath>
-#include <random>
-
 #include "opentrade/algo.h"
 #include "opentrade/security.h"
 
@@ -61,11 +58,8 @@ class TWAP : public Algo {
   double initial_volume_ = 0;
   Aggression agg_ = kAggLow;
   bool not_lower_than_last_px_ = false;
-  double random_ = 0;
-  double tilt_ = 1;
-  std::mt19937 gen_;
-  std::uniform_real_distribution<double>::param_type range_{-0.01, 0.01};
-  std::uniform_real_distribution<double> rand_;
+  double random_ = 0.;
+  double tilt_ = 1.;
 };
 
 }  // namespace opentrade
