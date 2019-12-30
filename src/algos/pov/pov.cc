@@ -12,9 +12,8 @@ struct Pov : public TWAP {
 
   double GetLeaves() noexcept override {
     auto pov = (inst_->md().trade.volume - initial_volume_) * max_pov_;
-    auto n = min_size_;
-    if (n <= 0) n = inst_->sec().lot_size;
-    return pov + n - inst_->total_exposure();
+    return pov + (min_size_ > 0 ? min_size_ : inst_->sec().lot_size) -
+           inst_->total_exposure();
   }
 };
 
