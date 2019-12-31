@@ -37,9 +37,11 @@ struct Pov : public TWAP {
   }
 
   void Timer() noexcept override {
-    auto time = GetTime();
-    roll_market_vol_.Update(inst_->md().trade.volume, time);
-    roll_my_vol_.Update(inst_->cum_qty(true), time);
+    if (win_size_ > 0) {
+      auto time = GetTime();
+      roll_market_vol_.Update(inst_->md().trade.volume, time);
+      roll_my_vol_.Update(inst_->cum_qty(true), time);
+    }
     TWAP::Timer();
   }
 
