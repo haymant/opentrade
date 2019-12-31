@@ -123,7 +123,7 @@ void TWAP::OnMarketQuote(const Instrument& inst, const MarketData& md,
 }
 
 void TWAP::OnConfirmation(const Confirmation& cm) noexcept {
-  if (inst_->total_qty() >= st_.qty) Stop();
+  if (inst_->cum_qty() >= st_.qty) Stop();
 }
 
 const ParamDefs& TWAP::GetParamDefs() noexcept {
@@ -145,7 +145,7 @@ double TWAP::GetLeaves() noexcept {
   return expect - inst_->total_exposure();
 }
 
-void TWAP::Timer() {
+void TWAP::Timer() noexcept {
   auto now = GetTime();
   if (now > end_time_) {
     Stop();
@@ -223,7 +223,7 @@ void TWAP::Timer() {
 
   auto volume = md.trade.volume - initial_volume_;
   if (volume > 0 && max_pov_ > 0) {
-    if (inst_->total_qty() - inst_->total_cx_qty() > max_pov_ * volume) return;
+    if (inst_->cum_qty() - inst_->cum_cx_qty() > max_pov_ * volume) return;
   }
   auto leaves = GetLeaves();
   if (leaves <= 0) return;

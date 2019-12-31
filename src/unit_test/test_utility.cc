@@ -43,13 +43,14 @@ TEST_CASE("Utility", "[Utility]") {
 
   SECTION("RollDelta") {
     auto tm = GetTime();
-    RollDelta<double> rd(120);
-    rd.Initialize(100);
+    RollDelta<double> rd(120, 100);
     rd.Update(100, tm);
     REQUIRE((rd.GetValue() == 0));
     rd.Update(102, tm + 2);  // 2
     REQUIRE((rd.GetValue() == 2));
     rd.Update(103, tm + 2);  // 1
+    REQUIRE((rd.GetValue() == 3));
+    rd.Update(102, tm + 2);  // -1
     REQUIRE((rd.GetValue() == 3));
     rd.Update(103, tm + 10);  // 0
     REQUIRE((rd.GetValue() == 3));

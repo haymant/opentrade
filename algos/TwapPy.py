@@ -86,7 +86,7 @@ def on_confirmation(self, confirmation):
             'cum_qty=', o.cum_qty, 'avg_px=', o.avg_px, 'qty=', o.qty, 'price=',
             o.price, 'type=', o.type, 'text=', c.text)
   if c.last_shares > 0:
-    qty = self.inst.total_qty
+    qty = self.inst.cum_qty
     log_debug('finished', qty, 'leaves', self.st.qty - qty, 'time elapsed',
               get_time() - self.begin_time, '/',
               self.end_time - self.begin_time)
@@ -127,7 +127,7 @@ def timer(self):
     return
 
   if self.volume > 0 and self.max_pov > 0:
-    if inst.total_qty - inst.total_cx_qty > self.max_pov * self.volume:
+    if inst.cum_qty - inst.cum_cx_qty > self.max_pov * self.volume:
       return
 
   ratio = min(1, (now - self.begin_time + 1) /

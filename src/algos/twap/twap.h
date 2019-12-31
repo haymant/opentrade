@@ -24,7 +24,7 @@ class TWAP : public Algo {
                      const MarketData& md0) noexcept override;
   void OnConfirmation(const Confirmation& cm) noexcept override;
   const ParamDefs& GetParamDefs() noexcept override;
-  void Timer();
+  virtual void Timer() noexcept;
   virtual Instrument* Subscribe();
   virtual const MarketData& md() { return inst_->md(); }
   virtual void Place(Contract* c) { Algo::Place(*c, inst_); }
