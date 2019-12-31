@@ -189,6 +189,7 @@ class Instrument {
   const T* Get(Indicator::IdType id) const {
     return md_->Get<T>(id);
   }
+  void Clear() { active_orders_.clear(); }
 
  private:
   Algo* algo_ = nullptr;

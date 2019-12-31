@@ -302,6 +302,61 @@ class PipeStream {
   std::ifstream fstream_;
 };
 
+template <typename T>
+class RollSum {
+ public:
+  RollSum(int win_size) : win_size_(win_size) {}
+  void Update(T value, time_t time) {
+    if (value > 0) {
+      if (q_.empty()) {
+        sum_ += value;
+        q_.emplace_back(value, time);
+        return;
+      }
+      if (time == q_.back().time)
+        q_.back().value += value;
+      else
+        q_.emplace_back(value, time);
+      sum_ += value;
+    }
+    while (!q_.empty() && time - q_.front().time > win_size_) {
+      sum_ -= q_.front().value;
+      q_.pop_front();
+    }
+  }
+  T GetValue() const { return sum_; }
+  void Clear() {
+    q_.clear();
+    sum_ = 0;
+  }
+
+ protected:
+  struct Pair {
+    Pair(T value, time_t time) : value(value), time(time) {}
+    T value = 0;
+    time_t time = 0;
+  };
+  std::deque<Pair> q_;
+  const int win_size_;
+  T sum_ = 0;
+};
+
+template <typename T>
+class RollDelta : public RollSum<T> {
+ public:
+  typedef RollSum<T> Parent;
+  RollDelta(int win_size) : Parent(win_size) {}
+  void Initialize(T last_value) { last_value_ = last_value; }
+  void Update(T value, time_t time) {
+    auto delta = value - last_value_;
+    Parent::Update(delta, time);
+    if (delta > 0) last_value_ = value;
+  }
+
+ protected:
+  T last_value_ = 0;
+};
+
 }  // namespace opentrade
 
 #endif  // OPENTRADE_UTILITY_H_

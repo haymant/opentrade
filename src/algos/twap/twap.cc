@@ -103,6 +103,7 @@ void TWAP::OnModify(const ParamMap& params) noexcept {
 }
 
 void TWAP::OnStop() noexcept {
+  inst_->Clear();
   LOG_DEBUG('[' << name() << ' ' << id() << "] stopped");
 }
 

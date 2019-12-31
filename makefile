@@ -10,11 +10,11 @@ backtest-debug:
 backtest-release:
 	mkdir -p build/backtest-release; cd build/backtest-release; cmake ../../src -DCMAKE_BUILD_TYPE=Release -DBACKTEST=1; make ${args}; cd -;
 
-unit-test-debug:
+unittest-debug:
 	mkdir -p build/unit_test_debug; cd build/unit_test_debug; cmake ../../src -DCMAKE_BUILD_TYPE=Debug -DUNIT_TEST=1; make ${args}; cd -;
 	build/unit_test_debug/unit_test/unit_test
 
-unit-test-release:
+unittest-release:
 	mkdir -p build/unit_test_release; cd build/unit_test_release; cmake ../../src -DCMAKE_BUILD_TYPE=Release -DUNIT_TEST=1; make ${args}; cd -;
 	build/unit_test_release/unit_test/unit_test
 

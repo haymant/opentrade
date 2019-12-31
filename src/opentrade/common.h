@@ -82,6 +82,7 @@ template <typename V>
 class Singleton {
  public:
   static V& Instance() { return *kInstance; }
+  virtual ~Singleton() {}
 
 #ifdef UNIT_TEST
   template <typename T = V>
