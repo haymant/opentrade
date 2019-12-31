@@ -7,10 +7,10 @@ struct Pov : public TWAP {
     auto err = TWAP::OnStart(params);
     if (!err.empty()) return err;
     if (max_pov_ <= 0) return "MaxPov required";
-    win_size_ = GetParam(params, "Window", 0) * 60;
-    if (win_size_ > 0) {
-      roll_market_vol_.Initialize(win_size_, initial_volume_);
-      roll_my_vol_.Initialize(win_size_, 0);
+    window_ = GetParam(params, "Window", 0) * 60;
+    if (window_ > 0) {
+      roll_market_vol_.Initialize(window_, initial_volume_);
+      roll_my_vol_.Initialize(window_, 0);
     }
     return {};
   }
@@ -25,7 +25,7 @@ struct Pov : public TWAP {
 
   double GetLeaves() noexcept override {
     double exposure, pov;
-    if (win_size_ > 0) {
+    if (window_ > 0) {
       pov = roll_market_vol_.GetValue();
       exposure = roll_my_vol_.GetValue() + inst_->total_outstanding_qty();
     } else {
@@ -37,7 +37,7 @@ struct Pov : public TWAP {
   }
 
   void Timer() noexcept override {
-    if (win_size_ > 0) {
+    if (window_ > 0) {
       auto time = GetTime();
       roll_market_vol_.Update(inst_->md().trade.volume, time);
       roll_my_vol_.Update(inst_->cum_qty(true), time);
@@ -52,7 +52,7 @@ struct Pov : public TWAP {
   }
 
  private:
-  int win_size_ = 0;
+  int window_ = 0;
   RollDelta<MarketData::Volume> roll_market_vol_{0, 0};
   RollDelta<MarketData::Volume> roll_my_vol_{0, 0};
 };

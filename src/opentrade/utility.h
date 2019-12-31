@@ -305,8 +305,8 @@ class PipeStream {
 template <typename T>
 class RollSum {
  public:
-  explicit RollSum(int win_size) : win_size_(win_size) {}
-  void Initialize(int win_size) { win_size_ = win_size; }
+  explicit RollSum(int window) : window_(window) {}
+  void Initialize(int window) { window_ = window; }
   void Update(T value, time_t time) {
     if (value > 0) {
       if (q_.empty()) {
@@ -320,7 +320,7 @@ class RollSum {
         q_.emplace_back(value, time);
       sum_ += value;
     }
-    while (!q_.empty() && time - q_.front().time > win_size_) {
+    while (!q_.empty() && time - q_.front().time > window_) {
       sum_ -= q_.front().value;
       q_.pop_front();
     }
@@ -338,7 +338,7 @@ class RollSum {
     time_t time = 0;
   };
   std::deque<Pair> q_;
-  int win_size_;
+  int window_;
   T sum_ = 0;
 };
 
@@ -346,10 +346,10 @@ template <typename T>
 class RollDelta : public RollSum<T> {
  public:
   typedef RollSum<T> Parent;
-  explicit RollDelta(int win_size, T last_value)
-      : Parent(win_size), last_value_(last_value) {}
-  void Initialize(int win_size, T last_value) {
-    Parent::Initialize(win_size);
+  explicit RollDelta(int window, T last_value)
+      : Parent(window), last_value_(last_value) {}
+  void Initialize(int window, T last_value) {
+    Parent::Initialize(window);
     last_value_ = last_value;
   }
   void Update(T value, time_t time) {
@@ -359,7 +359,7 @@ class RollDelta : public RollSum<T> {
   }
 
  protected:
-  T last_value_ = 0;
+  T last_value_;
 };
 
 }  // namespace opentrade
