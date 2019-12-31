@@ -190,7 +190,7 @@ class Instrument {
   const T* Get(Indicator::IdType id) const {
     return md_->Get<T>(id);
   }
-  void Clear() { active_orders_.clear(); }
+  void Clear() { decltype(active_orders_){}.swap(active_orders_); }
 
  private:
   Algo* algo_ = nullptr;

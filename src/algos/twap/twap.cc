@@ -33,7 +33,7 @@ std::string TWAP::OnStart(const ParamMap& params) noexcept {
                             kStock == sec->type;
 
   inst_ = Subscribe();
-  initial_volume_ = inst_->md().trade.volume;
+  initial_volume_ = md().trade.volume;
   auto seconds = GetParam(params, "ValidSeconds", 0);
   if (seconds < 60) return "Too short ValidSeconds, must be >= 60";
   begin_time_ = GetTime();

@@ -29,7 +29,7 @@ struct Pov : public TWAP {
       pov = roll_market_vol_.GetValue();
       exposure = roll_my_vol_.GetValue() + inst_->total_outstanding_qty();
     } else {
-      pov = inst_->md().trade.volume - initial_volume_;
+      pov = md().trade.volume - initial_volume_;
       exposure = inst_->total_exposure(true);
     }
     pov *= max_pov_;
@@ -39,7 +39,7 @@ struct Pov : public TWAP {
   void Timer() noexcept override {
     if (window_ > 0) {
       auto time = GetTime();
-      roll_market_vol_.Update(inst_->md().trade.volume, time);
+      roll_market_vol_.Update(md().trade.volume, time);
       roll_my_vol_.Update(inst_->cum_qty(true), time);
     }
     TWAP::Timer();

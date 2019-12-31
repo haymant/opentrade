@@ -327,7 +327,7 @@ class RollSum {
   }
   T GetValue() const { return sum_; }
   void Clear() {
-    q_.clear();
+    decltype(q_){}.swap(q_);  // release memory, q_.clear do not release memory
     sum_ = 0;
   }
 
