@@ -309,16 +309,16 @@ class RollSum {
   void Initialize(int window) { window_ = window; }
   void Update(T value, time_t time) {
     if (value > 0) {
+      sum_ += value;
       if (q_.empty()) {
-        sum_ += value;
         q_.emplace_back(value, time);
         return;
       }
-      if (time == q_.back().time)
+      if (time == q_.back().time) {
         q_.back().value += value;
-      else
-        q_.emplace_back(value, time);
-      sum_ += value;
+        return;
+      }
+      q_.emplace_back(value, time);
     }
     while (!q_.empty() && time - q_.front().time > window_) {
       sum_ -= q_.front().value;
