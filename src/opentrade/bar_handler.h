@@ -75,7 +75,7 @@ class BarHandler : public IndicatorHandler, public TradeTickHook {
   void StartNext() {
     auto now = NowInMicro();
     auto n = kMicroInMin * interval;
-    auto wait = n - (NowInMicro() - tm0_) % n;
+    auto wait = n - (now - tm0_) % n;
     auto ind_tm = std::round((now + wait) / kMicroInSecF);
     SetTimeout([this, ind_tm]() { OnTimer(ind_tm); }, wait / kMicroInSecF);
   }
