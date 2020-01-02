@@ -8,17 +8,19 @@ struct VWAP : public TWAP {
     auto err = TWAP::OnStart(params);
     if (!err.empty()) return err;
     auto sec = st_.sec;
+    auto start_seconds = sec->exchange->GetSeconds(start_time_);
+    start_time_floor_ = start_time_ - start_seconds % 60;
     profile_ = std::move(kProfiles_.Get(
-        sec->id, sec->exchange->GetSeconds(start_time_) / 60,
+        sec->id, start_seconds / 60,
         std::round(sec->exchange->GetSeconds(end_time_) / 60.) - 1));
     return {};
   }
 
   double GetLeaves() noexcept override {
     if (profile_.empty()) return TWAP::GetLeaves();
-    auto i = std::min(
-        static_cast<int64_t>(profile_.size() - 1),
-        std::max(0l, static_cast<int64_t>((GetTime() - start_time_) / 60)));
+    auto i = std::min(static_cast<int64_t>(profile_.size() - 1),
+                      std::max(0l, static_cast<int64_t>(
+                                       (GetTime() - start_time_floor_) / 60)));
     return st_.qty * profile_[i] - inst_->total_exposure();
   }
 
@@ -28,6 +30,7 @@ struct VWAP : public TWAP {
   }
 
  private:
+  time_t start_time_floor_;
   VolumeProfile::Profile profile_;
   static inline VolumeProfile kProfiles_{
       PythonOr(std::getenv("VOLUME_PROFILE_FILE"), "volume_profile.txt")};
