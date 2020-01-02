@@ -3,8 +3,6 @@
 namespace opentrade {
 
 struct Peg : public TWAP {
-  const ParamDefs& GetParamDefs() noexcept override { return kCommonParamDefs; }
-
   std::string OnStart(const ParamMap& params) noexcept override {
     auto err = TWAP::OnStart(params);
     if (!err.empty()) return err;

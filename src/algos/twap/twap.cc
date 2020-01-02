@@ -36,8 +36,8 @@ std::string TWAP::OnStart(const ParamMap& params) noexcept {
   initial_volume_ = md().trade.volume;
   auto seconds = GetParam(params, "ValidSeconds", 0);
   if (seconds < 60) return "Too short ValidSeconds, must be >= 60";
-  begin_time_ = GetTime();
-  end_time_ = begin_time_ + seconds;
+  start_time_ = GetTime();
+  end_time_ = start_time_ + seconds;
   auto err = Modify(params);
   if (!err.empty()) return err;
   if (min_size_ <= 0 && sec->lot_size <= 0) {
@@ -138,7 +138,7 @@ const ParamDefs& TWAP::GetParamDefs() noexcept {
 double TWAP::GetLeaves() noexcept {
   // get normalized time
   auto ratio =
-      (GetTime() - begin_time_ + 1.) / ((end_time_ - begin_time_) + 1.);
+      (GetTime() - start_time_ + 1.) / ((end_time_ - start_time_) + 1.);
   if (tilt_ != 1.) ratio = pow(ratio, tilt_);
   if (random_ != 0.) ratio += random_ * kRandom(kRandomGen);
   auto expect = st_.qty * ratio;

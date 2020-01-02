@@ -255,7 +255,8 @@ BOOST_PYTHON_MODULE(opentrade) {
       .def_readonly("odd_lot_allowed", &Exchange::odd_lot_allowed)
       .def("get_security", &Exchange::Get, bp::return_internal_reference<>())
       .add_property("date", &Exchange::GetDate)
-      .add_property("seconds", &Exchange::GetSeconds)
+      .add_property("seconds",
+                    +[](const Exchange &self) { return self.GetSeconds(); })
       .add_property("securities", +[](const Exchange &self) {
         auto tmp = new Securities;
         tmp->reserve(self.security_of_name.size());

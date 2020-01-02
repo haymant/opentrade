@@ -50,7 +50,7 @@ class TWAP : public Algo {
   Instrument* inst_ = nullptr;
   SecurityTuple st_;
   double price_ = 0;
-  time_t begin_time_ = 0;
+  time_t start_time_ = 0;
   time_t end_time_ = 0;
   int min_size_ = 0;
   int max_floor_ = 0;

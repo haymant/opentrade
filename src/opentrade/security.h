@@ -47,8 +47,9 @@ struct Exchange : public ParamsBase {
     return half_days_.load(boost::memory_order_relaxed);
   }
 
-  int GetSeconds() const {  // seconds since midnight in exchange time zone
-    return opentrade::GetSeconds(utc_time_offset);
+  int GetSeconds(
+      time_t tm = 0) const {  // seconds since midnight in exchange time zone
+    return opentrade::GetSeconds(utc_time_offset, tm);
   }
 
   int GetDate() const { return opentrade::GetDate(utc_time_offset); }

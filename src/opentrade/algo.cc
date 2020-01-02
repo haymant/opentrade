@@ -441,7 +441,7 @@ Instrument* Algo::Subscribe(const Security& sec, DataSrc src, bool listen,
   if (parent)
     inst->src_idx_ = MarketDataManager::Instance().GetIndex(adapter->src());
   inst->md_ = &MarketDataManager::Instance().Get(sec, adapter->src());
-  inst->id_ = ++Instrument::id_counter_;
+  inst->id_ = ++Instrument::kIdCounter_;
   inst->listen_ = listen;
   std::atomic_thread_fence(std::memory_order_release);
   instruments_.insert(inst);

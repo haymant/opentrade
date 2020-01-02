@@ -193,24 +193,24 @@ static inline time_t MakeTime(std::tm* tm, const char* tz) {
 
 static const int kSecondsOneDay = 3600 * 24;
 
-static inline int GetSeconds(int tm_gmtoff = 0) {
-  auto rawtime = GetTime() + tm_gmtoff;
+static inline int GetSeconds(int tm_gmtoff = 0, time_t utc_time = 0) {
+  auto rawtime = (utc_time ? utc_time : GetTime()) + tm_gmtoff;
+  struct tm tm_info;
+  gmtime_r(&rawtime, &tm_info);
+  return tm_info.tm_hour * 3600 + tm_info.tm_min * 60 + tm_info.tm_sec;
+}
+
+static inline time_t GetStartOfDayTime(int tm_gmtoff = 0, time_t utc_time = 0) {
+  if (!utc_time) utc_time = GetTime();
+  auto rawtime = utc_time + tm_gmtoff;
   struct tm tm_info;
   gmtime_r(&rawtime, &tm_info);
   auto n = tm_info.tm_hour * 3600 + tm_info.tm_min * 60 + tm_info.tm_sec;
-  return (n + kSecondsOneDay) % kSecondsOneDay;
+  return utc_time - n;
 }
 
-static inline time_t GetStartOfDayTime(int tm_gmtoff = 0) {
-  auto rawtime = GetTime() + tm_gmtoff;
-  struct tm tm_info;
-  gmtime_r(&rawtime, &tm_info);
-  auto n = tm_info.tm_hour * 3600 + tm_info.tm_min * 60 + tm_info.tm_sec;
-  return rawtime - n;
-}
-
-static inline int GetDate(int tm_gmtoff = 0) {
-  auto rawtime = GetTime() + tm_gmtoff;
+static inline int GetDate(int tm_gmtoff = 0, time_t utc_time = 0) {
+  auto rawtime = (utc_time ? utc_time : GetTime()) + tm_gmtoff;
   struct tm tm_info;
   gmtime_r(&rawtime, &tm_info);
   return 10000 * (tm_info.tm_year + 1900) + 100 * (tm_info.tm_mon + 1) +

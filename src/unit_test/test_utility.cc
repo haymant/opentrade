@@ -41,6 +41,18 @@ TEST_CASE("Utility", "[Utility]") {
     REQUIRE((rs.GetValue() == 0));
   }
 
+  SECTION("time") {
+    auto offset = GetUtcTimeOffset("Asia/Singapore");
+    REQUIRE((offset != 0));
+    REQUIRE((GetSeconds(offset, 1577962172) == 67772));
+    REQUIRE((GetStartOfDayTime(offset, 1577962172) == 1577962172 - 67772));
+    REQUIRE((GetDate(offset, 1577962172) == 20200102));
+    auto a = GetSeconds(offset);
+    sleep(1);
+    auto b = GetSeconds(offset);
+    REQUIRE((b - a == 1));
+  }
+
   SECTION("RollDelta") {
     auto tm = GetTime();
     RollDelta<double> rd(120, 100);

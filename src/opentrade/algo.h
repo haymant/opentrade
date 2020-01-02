@@ -56,6 +56,24 @@ struct ParamDef {
 
 typedef std::vector<ParamDef> ParamDefs;
 
+static const inline ParamDefs kCommonParamDefs{
+    {"Security", SecurityTuple{}, true},
+    {"Price", 0.0, false, 0, 10000000, 7},
+    {"ValidSeconds", 300, true, 60},
+    {"MinSize", 0, false, 0, 10000000},
+    {"MaxFloor", 0, false, 0, 10000000},
+    {"MaxPov", 0.0, false, 0, 1, 2},
+    {"Aggression", ParamDef::ValueVector{"Low", "Medium", "High", "Highest"},
+     true},
+    {"InternalCross", ParamDef::ValueVector{"Yes", "No"}, false},
+};
+
+static inline auto CombineParamDefs(const ParamDefs& a, const ParamDefs& b) {
+  ParamDefs c = a;
+  c.insert(c.begin(), b.begin(), b.end());
+  return c;
+}
+
 class Algo : public Adapter {
  public:
   ~Algo();
@@ -75,10 +93,7 @@ class Algo : public Adapter {
                              const MarketData& md0) noexcept {}
   // for cross order, only kUnconfirmedNew and kFilled
   virtual void OnConfirmation(const Confirmation& cm) noexcept {}
-  virtual const ParamDefs& GetParamDefs() noexcept {
-    static const ParamDefs kEmptyParamDefs;
-    return kEmptyParamDefs;
-  }
+  virtual const ParamDefs& GetParamDefs() noexcept { return kCommonParamDefs; }
   virtual void OnIndicator(Indicator::IdType id,
                            const Instrument& inst) noexcept {}
 
@@ -104,24 +119,6 @@ class Algo : public Adapter {
   Order* Place(const Contract& contract, Instrument* inst);
   void Cross(double qty, double price, OrderSide side, const SubAccount* acc,
              Instrument* inst);
-
-  static inline ParamDefs kCommonParamDefs{
-      {"Security", SecurityTuple{}, true},
-      {"Price", 0.0, false, 0, 10000000, 7},
-      {"ValidSeconds", 300, true, 60},
-      {"MinSize", 0, false, 0, 10000000},
-      {"MaxFloor", 0, false, 0, 10000000},
-      {"MaxPov", 0.0, false, 0, 1, 2},
-      {"Aggression", ParamDef::ValueVector{"Low", "Medium", "High", "Highest"},
-       true},
-      {"InternalCross", ParamDef::ValueVector{"Yes", "No"}, false},
-  };
-
-  static auto CombineParamDefs(const ParamDefs& a, const ParamDefs& b) {
-    ParamDefs c = a;
-    c.insert(c.begin(), b.begin(), b.end());
-    return c;
-  }
 
  private:
   const User* user_ = nullptr;
@@ -210,7 +207,7 @@ class Instrument {
   Instrument* parent_ = nullptr;
   friend class AlgoManager;
   friend class Algo;
-  static inline std::atomic<size_t> id_counter_ = 0;
+  static inline std::atomic<size_t> kIdCounter_ = 0;
 };
 
 class AlgoRunner {
