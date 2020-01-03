@@ -16,11 +16,11 @@ struct Pov : public TWAP {
   }
 
   const ParamDefs& GetParamDefs() noexcept {
-    static ParamDefs defs =
+    static ParamDefs kDefs =
         CombineParamDefs(kCommonParamDefs, ParamDefs{
                                                {"Window", 0, false},
                                            });
-    return defs;
+    return kDefs;
   }
 
   double GetLeaves() noexcept override {

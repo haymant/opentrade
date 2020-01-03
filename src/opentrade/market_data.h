@@ -157,7 +157,7 @@ struct MarketData {
   template <typename T>
   void Set(T* value) {
     assert(T::kId < 16);
-    std::unique_lock<std::shared_mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(kMutex_);
     if (!mngr_) mngr_ = new IndicatorManager;
     if (mngr_->inds.size() <= T::kId) mngr_->inds.resize(T::kId + 1);
     mngr_->inds[T::kId] = value;
@@ -166,7 +166,7 @@ struct MarketData {
   template <typename T = Indicator>
   const T* Get(Indicator::IdType id) const {
     if (!mngr_) return {};
-    std::shared_lock<std::shared_mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> lock(kMutex_);
     if (id >= mngr_->inds.size()) return {};
     return dynamic_cast<T*>(mngr_->inds.at(id));
   }
@@ -177,13 +177,13 @@ struct MarketData {
   }
 
   void HookTradeTick(TradeTickHook* hook) {
-    std::unique_lock<std::shared_mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(kMutex_);
     if (!mngr_) mngr_ = new IndicatorManager;
     mngr_->trade_tick_hooks.push_back(hook);
   }
 
   void UnhookTradeTick(TradeTickHook* hook) {
-    std::unique_lock<std::shared_mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(kMutex_);
     if (!mngr_) return;
     mngr_->trade_tick_hooks.erase(
         std::remove(mngr_->trade_tick_hooks.begin(),
@@ -194,7 +194,7 @@ struct MarketData {
   void CheckTradeHook(DataSrc::IdType src, Security::IdType id) {
     if (!mngr_) return;
     if (mngr_->trade_tick_hooks.empty()) return;
-    std::shared_lock<std::shared_mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> lock(kMutex_);
     // to-do: make it async without using TaskPool
     for (auto& hook : mngr_->trade_tick_hooks) {
       hook->OnTrade(src, id, this, tm, trade.close, trade.qty);
@@ -212,7 +212,7 @@ struct MarketData {
 
  private:
   IndicatorManager* mngr_ = nullptr;
-  static inline std::shared_mutex mutex_;
+  static inline std::shared_mutex kMutex_;
 };
 
 class MarketDataAdapter : public virtual NetworkAdapter {
