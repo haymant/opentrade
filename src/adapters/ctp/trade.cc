@@ -476,15 +476,13 @@ std::string Trade::Place(const opentrade::Order& ord) noexcept {
   tmp << std::setfill('0') << std::setw(sizeof(c_ord.OrderRef) - 1) << ord.id;
   strncpy(c_ord.OrderRef, tmp.str().c_str(), sizeof(c_ord.OrderRef) - 1);
   char offset = 0;
-  char hedge = 0;
-  if (ord.optional) {
+  if (ord.optional)
     offset = opentrade::GetParam(*ord.optional, "offset_flag", offset);
-    hedge = opentrade::GetParam(*ord.optional, "hedge_flag", hedge);
-  }
   // 组合开平标志
   c_ord.CombOffsetFlag[0] = offset;
   // 组合投机套保标志
-  c_ord.CombHedgeFlag[0] = hedge;
+  auto hedge = ord.broker_account->GetParam("hedge_flag");
+  if (!hedge.empty()) c_ord.CombHedgeFlag[0] = hedge[0];
   // 数量
   c_ord.VolumeTotalOriginal = ord.qty;
   // 有效期类型
