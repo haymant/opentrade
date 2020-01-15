@@ -248,21 +248,21 @@ void Connection::PublishMarketStatus() {
 }
 
 static inline void GetMarketData(
-    const MarketData& md, const MarketData& md0,
+    const MarketData& md, MarketData* md0,
     const std::pair<Security::IdType, DataSrc::IdType>& sec_src, json* j) {
-  if (md.tm == md0.tm) return;
+  if (md.tm == md0->tm) return;
   json j3;
   j3["t"] = md.tm;
-  if (md.trade.open != md0.trade.open) j3["o"] = md.trade.open;
-  if (md.trade.high != md0.trade.high) j3["h"] = md.trade.high;
-  if (md.trade.low != md0.trade.low) j3["l"] = md.trade.low;
-  if (md.trade.close != md0.trade.close) j3["c"] = md.trade.close;
-  if (md.trade.qty != md0.trade.qty) j3["q"] = md.trade.qty;
-  if (md.trade.volume != md0.trade.volume) j3["v"] = md.trade.volume;
-  if (md.trade.vwap != md0.trade.vwap) j3["V"] = md.trade.vwap;
+  if (md.trade.open != md0->trade.open) j3["o"] = md.trade.open;
+  if (md.trade.high != md0->trade.high) j3["h"] = md.trade.high;
+  if (md.trade.low != md0->trade.low) j3["l"] = md.trade.low;
+  if (md.trade.close != md0->trade.close) j3["c"] = md.trade.close;
+  if (md.trade.qty != md0->trade.qty) j3["q"] = md.trade.qty;
+  if (md.trade.volume != md0->trade.volume) j3["v"] = md.trade.volume;
+  if (md.trade.vwap != md0->trade.vwap) j3["V"] = md.trade.vwap;
   for (auto i = 0u; i < 5u; ++i) {
     char name[3] = "a";
-    auto& d0 = md0.depth[i];
+    auto& d0 = md0->depth[i];
     auto& d = md.depth[i];
     if (d.ask_price != d0.ask_price) {
       name[1] = '0' + i;
@@ -289,6 +289,7 @@ static inline void GetMarketData(
         json{json{sec_src.first, DataSrc::GetStr(sec_src.second)}, j3});
   else
     j->push_back(json{sec_src.first, j3});
+  *md0 = md;
 }
 
 void Connection::PublishMarketdata() {
@@ -303,8 +304,7 @@ void Connection::PublishMarketdata() {
       auto sec_src = pair.first;
       auto md =
           MarketDataManager::Instance().GetLite(sec_src.first, sec_src.second);
-      GetMarketData(md, pair.second.first, sec_src, &j);
-      pair.second.first = md;
+      GetMarketData(md, &pair.second.first, sec_src, &j);
     }
     if (j.size() > 1) {
       self->Send(j);
@@ -687,8 +687,7 @@ void Connection::HandleMessageSync(const std::string& msg,
         auto sec = SecurityManager::Instance().Get(sec_src.first);
         if (sec) {
           auto md = MarketDataManager::Instance().Get(*sec, sec_src.second);
-          GetMarketData(md, s.first, sec_src, &jout);
-          s.first = md;
+          GetMarketData(md, &s.first, sec_src, &jout);
           s.second += 1;
         }
       }
