@@ -40,7 +40,6 @@ inline void PB::LoopAction() {
     connected_ = 0;
     return;
   }
-  connected_ = 1;
   std::ifstream ifs(order_file.c_str());
   if (!ifs.good()) {
     connected_ = 0;
@@ -122,6 +121,7 @@ inline void PB::LoopAction() {
     connected_ = 0;
     return;
   }
+  connected_ = 1;
   std::getline(ifs, line);
   boost::split(toks, line, boost::is_any_of(",\r"));
   i_tag = -1;
