@@ -297,7 +297,6 @@ void Connection::PublishMarketdata() {
   auto self = shared_from_this();
   timer_.expires_from_now(boost::posix_time::milliseconds(1000));
   timer_.async_wait(strand_.wrap([self](auto) {
-    self->PublishMarketdata();
     self->PublishMarketStatus();
     json j = {"md"};
     for (auto& pair : self->subs_) {
@@ -309,6 +308,7 @@ void Connection::PublishMarketdata() {
     if (j.size() > 1) {
       self->Send(j);
     }
+    self->PublishMarketdata();
     if (!self->sub_pnl_) return;
     for (auto& pair : PositionManager::Instance().sub_positions_) {
       auto sub_account_id = pair.first.first;
