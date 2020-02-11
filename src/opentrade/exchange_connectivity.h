@@ -11,8 +11,6 @@ struct ExchangeConnectivityAdapter : public virtual NetworkAdapter {
   virtual std::string Cancel(const Order& ord) noexcept = 0;
   void HandleNew(Order::IdType id, const std::string& order_id,
                  int64_t transaction_time = 0);
-  void HandleSuspended(Order::IdType id, const std::string& order_id,
-                       int64_t transaction_time = 0);
   void HandlePendingNew(Order::IdType id, const std::string& text = {},
                         int64_t transaction_time = 0);
   void HandlePendingCancel(Order::IdType id, Order::IdType orig_id,

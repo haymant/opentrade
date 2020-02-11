@@ -44,16 +44,23 @@ enum OrderStatus : char {
   kNew = '0',
   kPartiallyFilled = '1',
   kFilled = '2',
-  kDoneForDay = '3',
+  kDoneForDay = '3',  // Order not, or partially, filled; no further executions
+                      // forthcoming for the trading day
   kCanceled = '4',
   kReplaced = '5',
   kPendingCancel = '6',
-  kStopped = '7',
+  kStopped = '7',  // Order has been stopped at the exchange. Used when
+                   // guranteeing or protecting a price and quantity
   kRejected = '8',
-  kSuspended = '9',
+  kSuspended = '9',  // Order has been placed in suspended state at the request
+                     // of the client
   kPendingNew = 'A',
-  kCalculated = 'B',
-  kExpired = 'C',
+  kCalculated =
+      'B',  // Order has been completed for the day (either filled or done for
+            // day). Commission or currency settlement details have been
+            // calculated and reported in this execution message
+  kExpired = 'C',  // Order has been canceled in broker's system due to time in
+                   // force instructions.
   kAcceptedForBidding = 'D',
   kPendingReplace = 'E',
   kRiskRejected = 'a',

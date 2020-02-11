@@ -283,6 +283,7 @@ void AlgoManager::Handle(Confirmation::Ptr cm) {
       case kCanceled:
       case kRejected:
       case kExpired:
+      case kStopped:
       case kCalculated:
       case kDoneForDay:
         if (cm->order->IsBuy())

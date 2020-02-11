@@ -169,7 +169,11 @@ class FixAdapter : public Application,
         OnRejected(msg, text);
         break;
       case FIX::ExecType_SUSPENDED:
-        OnSuspended(msg);
+      case FIX::ExecType_DONE_FOR_DAY:
+      case FIX::ExecType_CALCULATED:
+      case FIX::ExecType_STOPPED:
+      case FIX::ExecType_EXPIRED:
+        OnOthers(msg, exec_type, text);
         break;
       case FIX::ExecType_RESTATED:
         break;
@@ -192,12 +196,11 @@ class FixAdapter : public Application,
     HandleNew(clordid, order_id, transact_time_);
   }
 
-  void OnSuspended(const FIX::Message& msg) {
+  void OnOthers(const FIX::Message& msg, char exec_type,
+                const std::string& text) {
     Order::IdType clordid = atol(msg.getField(FIX::FIELD::ClOrdID).c_str());
-    std::string order_id;
-    if (msg.isSetField(FIX::FIELD::OrderID))
-      order_id = msg.getField(FIX::FIELD::OrderID);
-    HandleSuspended(clordid, order_id, transact_time_);
+    HandleOthers(clordid, static_cast<OrderStatus>(exec_type), text,
+                 transact_time_);
   }
 
   void OnPendingNew(const FIX::Message& msg, const std::string& text) {
