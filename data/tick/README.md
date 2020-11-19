@@ -1,0 +1,1 @@
+cat ticks.* > ticks.xz
